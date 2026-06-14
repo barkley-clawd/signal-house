@@ -5,6 +5,7 @@ vi.mock('../../../db/client', () => ({
   initDb: vi.fn().mockResolvedValue(undefined),
   insertSnapshot: vi.fn(),
   insertAggregate: vi.fn(),
+  upsertDailyMetrics: vi.fn(),
   getLatestSnapshot: vi.fn().mockReturnValue(null),
 }))
 

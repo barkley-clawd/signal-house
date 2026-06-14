@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 export const SQL = {
 
@@ -36,6 +36,34 @@ export const SQL = {
 
     CREATE INDEX IF NOT EXISTS idx_aggregates_period
       ON aggregates(period_start, period_end);
+
+    CREATE TABLE IF NOT EXISTS daily_metrics (
+      day                   TEXT PRIMARY KEY,
+      captured_at           TEXT NOT NULL,
+      source                TEXT NOT NULL DEFAULT 'orchestrated',
+      version               INTEGER NOT NULL DEFAULT 1,
+      reflects_complete_data INTEGER NOT NULL DEFAULT 0,
+      issues_opened         INTEGER NOT NULL DEFAULT 0,
+      issues_closed         INTEGER NOT NULL DEFAULT 0,
+      prs_created           INTEGER NOT NULL DEFAULT 0,
+      prs_merged            INTEGER NOT NULL DEFAULT 0,
+      total_commits         INTEGER NOT NULL DEFAULT 0,
+      avg_cycle_time_days   REAL,
+      median_cycle_time_days REAL,
+      p95_cycle_time_days   REAL,
+      cycle_time_sample_size INTEGER NOT NULL DEFAULT 0,
+      ci_total_runs         INTEGER NOT NULL DEFAULT 0,
+      ci_pass_count         INTEGER NOT NULL DEFAULT 0,
+      ci_fail_count         INTEGER NOT NULL DEFAULT 0,
+      ci_pass_rate          REAL,
+      ci_avg_duration_ms    REAL,
+      total_sessions        INTEGER NOT NULL DEFAULT 0,
+      session_error_count   INTEGER NOT NULL DEFAULT 0,
+      stale_issues          INTEGER NOT NULL DEFAULT 0,
+      stale_prs             INTEGER NOT NULL DEFAULT 0,
+      warnings              TEXT NOT NULL DEFAULT '[]',
+      created_at            TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `,
 
   insertSnapshot: `
@@ -94,6 +122,62 @@ export const SQL = {
   deleteAggregatesOlderThan: `
     DELETE FROM aggregates
     WHERE period_end < @before;
+  `,
+
+  upsertDailyMetrics: `
+    INSERT INTO daily_metrics (
+      day, captured_at, source, version, reflects_complete_data,
+      issues_opened, issues_closed, prs_created, prs_merged, total_commits,
+      avg_cycle_time_days, median_cycle_time_days, p95_cycle_time_days, cycle_time_sample_size,
+      ci_total_runs, ci_pass_count, ci_fail_count, ci_pass_rate, ci_avg_duration_ms,
+      total_sessions, session_error_count,
+      stale_issues, stale_prs,
+      warnings
+    ) VALUES (
+      @day, @capturedAt, @source, @version, @reflectsCompleteData,
+      @issuesOpened, @issuesClosed, @prsCreated, @prsMerged, @totalCommits,
+      @avgCycleTimeDays, @medianCycleTimeDays, @p95CycleTimeDays, @cycleTimeSampleSize,
+      @ciTotalRuns, @ciPassCount, @ciFailCount, @ciPassRate, @ciAvgDurationMs,
+      @totalSessions, @sessionErrorCount,
+      @staleIssues, @stalePrs,
+      @warnings
+    )
+    ON CONFLICT(day) DO UPDATE SET
+      captured_at = excluded.captured_at,
+      source = excluded.source,
+      version = excluded.version,
+      reflects_complete_data = excluded.reflects_complete_data,
+      issues_opened = excluded.issues_opened,
+      issues_closed = excluded.issues_closed,
+      prs_created = excluded.prs_created,
+      prs_merged = excluded.prs_merged,
+      total_commits = excluded.total_commits,
+      avg_cycle_time_days = excluded.avg_cycle_time_days,
+      median_cycle_time_days = excluded.median_cycle_time_days,
+      p95_cycle_time_days = excluded.p95_cycle_time_days,
+      cycle_time_sample_size = excluded.cycle_time_sample_size,
+      ci_total_runs = excluded.ci_total_runs,
+      ci_pass_count = excluded.ci_pass_count,
+      ci_fail_count = excluded.ci_fail_count,
+      ci_pass_rate = excluded.ci_pass_rate,
+      ci_avg_duration_ms = excluded.ci_avg_duration_ms,
+      total_sessions = excluded.total_sessions,
+      session_error_count = excluded.session_error_count,
+      stale_issues = excluded.stale_issues,
+      stale_prs = excluded.stale_prs,
+      warnings = excluded.warnings;
+  `,
+
+  getDailyMetricsRange: `
+    SELECT * FROM daily_metrics
+    WHERE day >= @fromDay AND day <= @toDay
+    ORDER BY day DESC;
+  `,
+
+  getLatestDailyDay: `
+    SELECT day FROM daily_metrics
+    ORDER BY day DESC
+    LIMIT 1;
   `,
 
 }

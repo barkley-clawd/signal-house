@@ -200,6 +200,53 @@ npm run typecheck
 npm run build
 ```
 
+## Daily metrics persistence
+
+When a refresh completes, the orchestrator computes per-day metric rollups from the raw source data and persists them into the `daily_metrics` table.
+
+### Schema
+
+Each row is keyed by a single calendar day (`YYYY-MM-DD` UTC) and stores aggregate-level numeric rollups:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `day` | TEXT PK | Calendar day in `YYYY-MM-DD` UTC |
+| `captured_at` | TEXT | ISO 8601 timestamp of the refresh that produced this row |
+| `source` | TEXT | Data source identifier (e.g. `orchestrated`) |
+| `version` | INTEGER | Schema version for future migrations |
+| `reflects_complete_data` | INTEGER | `1` if no collector errors occurred |
+| `issues_opened` / `issues_closed` | INTEGER | Per-day issue throughput |
+| `prs_created` / `prs_merged` | INTEGER | Per-day PR throughput |
+| `total_commits` | INTEGER | Sum of recent commits across all local git repos |
+| `avg_cycle_time_days` / `median_cycle_time_days` / `p95_cycle_time_days` | REAL | Cycle time statistics |
+| `cycle_time_sample_size` | INTEGER | Sample size for cycle time stats |
+| `ci_total_runs` / `ci_pass_count` / `ci_fail_count` | INTEGER | Per-day CI outcome counts |
+| `ci_pass_rate` | REAL | `pass / total` |
+| `ci_avg_duration_ms` | REAL | Average CI run duration |
+| `total_sessions` / `session_error_count` | INTEGER | Per-day session counts |
+| `stale_issues` / `stale_prs` | INTEGER | Stale work snapshot |
+| `warnings` | TEXT | JSON array of warning strings |
+
+### Behaviour
+
+- **Same-day overwrite**: Inserting a row for an existing day replaces the previous record (upsert-by-day).
+- **Historical preservation**: Days from earlier calendar dates are never modified by a new refresh.
+- **Missing days**: Days with no data are omitted from results — no zero-filled rows are returned.
+- **Range query**: `getDailyMetricsRange(fromDay, toDay)` returns rows in descending day order.
+
+### Local verification
+
+```bash
+# Run the full test suite (includes daily metrics tests)
+npm test
+
+# TypeScript type check
+npm run typecheck
+
+# Production build
+npm run build
+```
+
 ### 28-day regression coverage expectations
 
 The 28-day dashboard work should keep these regressions covered as the data model, API, and UI evolve:

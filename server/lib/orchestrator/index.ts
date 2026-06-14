@@ -1,7 +1,8 @@
 import { createCollector as createGitHubCollector } from '../github/collector'
 import { createLocalGitCollector } from '../git/collector'
 import { createSessionCollector } from '../sessions/collector'
-import { initDb, insertSnapshot, insertAggregate, getLatestSnapshot } from '../../db/client'
+import { initDb, insertSnapshot, insertAggregate, getLatestSnapshot, upsertDailyMetrics } from '../../db/client'
+import { computeDailyMetrics } from '../daily-metrics'
 import { randomUUID } from 'node:crypto'
 import type { GitHubCollectorConfig } from '../github/types'
 import type { LocalGitCollectorConfig, LocalGitRepoInfo } from '../git/types'
@@ -211,6 +212,11 @@ export function createOrchestrator(config: OrchestratorConfig) {
               snapshotId,
             )
           }
+        }
+
+        const dailyRows = computeDailyMetrics(snapshot)
+        for (const row of dailyRows) {
+          upsertDailyMetrics(row)
         }
       } catch (err) {
         allErrors.push(`Failed to persist snapshot: ${err instanceof Error ? err.message : String(err)}`)

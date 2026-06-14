@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { SQL, SCHEMA_VERSION } from './schema'
 import type { MetricSnapshot, SnapshotRow, LatestState } from '../../types/snapshot'
 import type { AggregateType } from '../../types/aggregates'
+import type { DailyMetricsInsert, DailyMetricsRow } from '../../types/daily-metrics'
 
 let _db: SqlJsDatabase | null = null
 
@@ -178,6 +179,87 @@ export function getLatestState(): LatestState {
     refreshInProgress,
     isStale,
   }
+}
+
+export function upsertDailyMetrics(row: DailyMetricsInsert): void {
+  const db = getDb()
+  db.run(SQL.upsertDailyMetrics, {
+    '@day': row.day,
+    '@capturedAt': row.capturedAt,
+    '@source': row.source,
+    '@version': SCHEMA_VERSION,
+    '@reflectsCompleteData': row.reflectsCompleteData ? 1 : 0,
+    '@issuesOpened': row.issuesOpened,
+    '@issuesClosed': row.issuesClosed,
+    '@prsCreated': row.prsCreated,
+    '@prsMerged': row.prsMerged,
+    '@totalCommits': row.totalCommits,
+    '@avgCycleTimeDays': row.avgCycleTimeDays,
+    '@medianCycleTimeDays': row.medianCycleTimeDays,
+    '@p95CycleTimeDays': row.p95CycleTimeDays,
+    '@cycleTimeSampleSize': row.cycleTimeSampleSize,
+    '@ciTotalRuns': row.ciTotalRuns,
+    '@ciPassCount': row.ciPassCount,
+    '@ciFailCount': row.ciFailCount,
+    '@ciPassRate': row.ciPassRate,
+    '@ciAvgDurationMs': row.ciAvgDurationMs,
+    '@totalSessions': row.totalSessions,
+    '@sessionErrorCount': row.sessionErrorCount,
+    '@staleIssues': row.staleIssues,
+    '@stalePrs': row.stalePrs,
+    '@warnings': JSON.stringify(row.warnings),
+  })
+  save()
+}
+
+function rowToDailyMetrics(row: Record<string, unknown>): DailyMetricsRow {
+  return {
+    day: String(row.day),
+    capturedAt: String(row.captured_at),
+    source: String(row.source),
+    version: Number(row.version),
+    reflectsCompleteData: Number(row.reflects_complete_data) === 1,
+    issuesOpened: Number(row.issues_opened),
+    issuesClosed: Number(row.issues_closed),
+    prsCreated: Number(row.prs_created),
+    prsMerged: Number(row.prs_merged),
+    totalCommits: Number(row.total_commits),
+    avgCycleTimeDays: row.avg_cycle_time_days != null ? Number(row.avg_cycle_time_days) : null,
+    medianCycleTimeDays: row.median_cycle_time_days != null ? Number(row.median_cycle_time_days) : null,
+    p95CycleTimeDays: row.p95_cycle_time_days != null ? Number(row.p95_cycle_time_days) : null,
+    cycleTimeSampleSize: Number(row.cycle_time_sample_size),
+    ciTotalRuns: Number(row.ci_total_runs),
+    ciPassCount: Number(row.ci_pass_count),
+    ciFailCount: Number(row.ci_fail_count),
+    ciPassRate: row.ci_pass_rate != null ? Number(row.ci_pass_rate) : null,
+    ciAvgDurationMs: row.ci_avg_duration_ms != null ? Number(row.ci_avg_duration_ms) : null,
+    totalSessions: Number(row.total_sessions),
+    sessionErrorCount: Number(row.session_error_count),
+    staleIssues: Number(row.stale_issues),
+    stalePrs: Number(row.stale_prs),
+    warnings: JSON.parse(String(row.warnings)),
+    createdAt: String(row.created_at),
+  }
+}
+
+export function getDailyMetricsRange(fromDay: string, toDay: string): DailyMetricsRow[] {
+  const db = getDb()
+  const stmt = db.prepare(SQL.getDailyMetricsRange)
+  stmt.bind({ '@fromDay': fromDay, '@toDay': toDay })
+  const rows: DailyMetricsRow[] = []
+  while (stmt.step()) {
+    rows.push(rowToDailyMetrics(stmt.getAsObject() as Record<string, unknown>))
+  }
+  stmt.free()
+  return rows
+}
+
+export function getLatestDailyDay(): string | null {
+  const db = getDb()
+  const stmt = db.prepare(SQL.getLatestDailyDay)
+  const result = stmt.step() ? String(stmt.getAsObject().day) : null
+  stmt.free()
+  return result
 }
 
 export function prune(before: string): void {

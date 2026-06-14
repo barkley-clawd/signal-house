@@ -25,3 +25,8 @@ export type {
   SnapshotRow,
   LatestState,
 } from './snapshot'
+
+export type {
+  DailyMetricsRow,
+  DailyMetricsInsert,
+} from './daily-metrics'
