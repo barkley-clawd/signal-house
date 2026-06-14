@@ -1,14 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createSessionCollector } from '../collector'
-import { execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 
 vi.mock('node:child_process')
 
-const mockExecSync = vi.mocked(execSync)
+const mockExecFileSync = vi.mocked(execFileSync)
 
 beforeEach(() => {
-  vi.restoreAllMocks()
+  vi.resetAllMocks()
 })
+
+function enoentErr(): Error {
+  const err = new Error('spawnSync ENOENT')
+  Object.defineProperty(err, 'code', { value: 'ENOENT' })
+  return err
+}
 
 function cliOutput(overview: Record<string, number>, tools: Array<{ name: string; count: number; pct: string }>): string {
   const section = (title: string, rows: string[]) => [
@@ -44,7 +50,7 @@ describe('createSessionCollector', () => {
       ],
     )
 
-    mockExecSync.mockReturnValueOnce(mockOutput + '\n')
+    mockExecFileSync.mockReturnValueOnce(mockOutput + '\n')
 
     const collector = createSessionCollector()
     const result = await collector.collect()
@@ -66,7 +72,7 @@ describe('createSessionCollector', () => {
       [],
     )
 
-    mockExecSync.mockReturnValueOnce(mockOutput + '\n')
+    mockExecFileSync.mockReturnValueOnce(mockOutput + '\n')
 
     const collector = createSessionCollector()
     const result = await collector.collect()
@@ -79,10 +85,8 @@ describe('createSessionCollector', () => {
     expect(result.sessionUsage!.topActions).toEqual([])
   })
 
-  it('returns documented gap when CLI is unavailable', async () => {
-    mockExecSync.mockImplementationOnce(() => {
-      throw new Error('command not found: opencode')
-    })
+  it('returns documented gap when no opencode binary is available', async () => {
+    mockExecFileSync.mockImplementation(() => { throw enoentErr() })
 
     const collector = createSessionCollector()
     const result = await collector.collect()
@@ -91,16 +95,35 @@ describe('createSessionCollector', () => {
     expect(result.sessionUsage).toBeNull()
     expect(result.gap).not.toBeNull()
     expect(result.gap).toContain('opencode stats CLI unavailable')
+    expect(result.gap).toContain('no opencode binary available')
     expect(result.errors).toHaveLength(0)
   })
 
-  it('uses custom opencode command path with --days flag', async () => {
-    mockExecSync.mockImplementationOnce((cmd: string) => {
-      expect(cmd).toBe('/custom/opencode stats --days 30 2>/dev/null')
+  it('prioritises opencodeBin over opencodeCommand when both are set', async () => {
+    mockExecFileSync.mockImplementationOnce((cmd: string, args: readonly string[] | undefined) => {
+      expect(cmd).toBe('/custom/opencode-bin')
+      expect(args).toEqual(['stats', '--days', '30'])
       return cliOutput({ Sessions: 0, Messages: 0, Days: 30 }, []) + '\n'
     })
 
-    const collector = createSessionCollector({ opencodeCommand: '/custom/opencode' })
+    const collector = createSessionCollector({
+      opencodeBin: '/custom/opencode-bin',
+      opencodeCommand: '/custom/opencode',
+    })
+    const result = await collector.collect()
+
+    expect(result.gap).toBeNull()
+    expect(result.sessions).toHaveLength(0)
+  })
+
+  it('uses custom opencode command from config.opencodeBin', async () => {
+    mockExecFileSync.mockImplementationOnce((cmd: string, args: readonly string[] | undefined) => {
+      expect(cmd).toBe('/custom/opencode-bin')
+      expect(args).toEqual(['stats', '--days', '30'])
+      return cliOutput({ Sessions: 0, Messages: 0, Days: 30 }, []) + '\n'
+    })
+
+    const collector = createSessionCollector({ opencodeBin: '/custom/opencode-bin' })
     const result = await collector.collect()
 
     expect(result.gap).toBeNull()
@@ -108,7 +131,7 @@ describe('createSessionCollector', () => {
   })
 
   it('returns gap on unparseable CLI output', async () => {
-    mockExecSync.mockReturnValueOnce('garbage output that is not a CLI table\n')
+    mockExecFileSync.mockReturnValueOnce('garbage output that is not a CLI table\n')
 
     const collector = createSessionCollector()
     const result = await collector.collect()
@@ -118,5 +141,77 @@ describe('createSessionCollector', () => {
     expect(result.gap).not.toBeNull()
     expect(result.gap).toContain('opencode stats CLI unavailable')
     expect(result.errors).toHaveLength(0)
+  })
+
+  it('falls back to known local path when PATH opencode is missing', async () => {
+    mockExecFileSync
+      .mockImplementationOnce(() => { throw enoentErr() }) // 'opencode' not on PATH
+      .mockImplementationOnce(() => { throw enoentErr() }) // $HOME/.opencode/bin/opencode not found
+      .mockImplementationOnce(() => cliOutput({ Sessions: 1, Messages: 0, Days: 1 }, []) + '\n') // known local path works
+
+    const collector = createSessionCollector()
+    const result = await collector.collect()
+
+    expect(result.gap).toBeNull()
+    expect(result.sessionUsage!.totalSessions).toBe(1)
+    expect(mockExecFileSync).toHaveBeenNthCalledWith(
+      1,
+      'opencode',
+      ['stats', '--days', '30'],
+      expect.objectContaining({ encoding: 'utf-8' }),
+    )
+    expect(mockExecFileSync).toHaveBeenNthCalledWith(
+      3,
+      '/home/openclaw/.opencode/bin/opencode',
+      ['stats', '--days', '30'],
+      expect.objectContaining({ encoding: 'utf-8' }),
+    )
+  })
+
+  it('uses first executable candidate from candidate list', async () => {
+    mockExecFileSync.mockReturnValueOnce(cliOutput({ Sessions: 3, Messages: 0, Days: 30 }, []) + '\n')
+
+    const collector = createSessionCollector({ opencodeBin: '/first/bin/opencode' })
+    const result = await collector.collect()
+
+    expect(result.gap).toBeNull()
+    expect(mockExecFileSync).toHaveBeenCalledWith(
+      '/first/bin/opencode',
+      ['stats', '--days', '30'],
+      expect.objectContaining({ encoding: 'utf-8' }),
+    )
+  })
+
+  it('returns gap when no candidate is found', async () => {
+    mockExecFileSync.mockImplementation(() => { throw enoentErr() })
+
+    const collector = createSessionCollector()
+    const result = await collector.collect()
+
+    expect(result.sessions).toHaveLength(0)
+    expect(result.sessionUsage).toBeNull()
+    expect(result.gap).not.toBeNull()
+    expect(result.gap).toContain('opencode stats CLI unavailable')
+    expect(result.gap).toContain('no opencode binary available')
+  })
+
+  it('respects prior env vars over defaults but config over env', async () => {
+    vi.stubEnv('OPENCODE_BIN', '/env/opencode')
+    vi.stubEnv('OPENCODE_COMMAND', '/env/old-opencode')
+
+    mockExecFileSync.mockReturnValueOnce(cliOutput({ Sessions: 5, Messages: 0, Days: 30 }, []) + '\n')
+
+    const collector = createSessionCollector()
+    const result = await collector.collect()
+
+    expect(result.gap).toBeNull()
+    expect(result.sessionUsage!.totalSessions).toBe(5)
+    expect(mockExecFileSync).toHaveBeenCalledWith(
+      '/env/opencode',
+      ['stats', '--days', '30'],
+      expect.objectContaining({ encoding: 'utf-8' }),
+    )
+
+    vi.unstubAllEnvs()
   })
 })

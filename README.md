@@ -146,6 +146,9 @@ export GITHUB_REPO=your-repo
 export GIT_REPOS=/path/to/repo1,/path/to/repo2
 
 # Optional: Session / OpenCode CLI metrics
+# Resolved in order: config.opencodeBin > OPENCODE_BIN > $PATH 'opencode' > $HOME/.opencode/bin/opencode > fallback path > config.opencodeCommand > OPENCODE_COMMAND
+# OPENCODE_COMMAND and config.opencodeCommand are compatibility-only fallbacks.
+export OPENCODE_BIN=
 export OPENCODE_COMMAND=opencode
 export SESSIONS_PERIOD_DAYS=30
 ```
@@ -157,7 +160,8 @@ GITHUB_TOKEN=ghp_your_token_here
 GITHUB_OWNER=your-org-or-user
 GITHUB_REPO=your-repo
 GIT_REPOS=/path/to/repo1,/path/to/repo2
-OPENCODE_COMMAND=opencode
+OPENCODE_BIN=
+OPENCODE_COMMAND=opencode # compatibility fallback only
 SESSIONS_PERIOD_DAYS=30
 ```
 

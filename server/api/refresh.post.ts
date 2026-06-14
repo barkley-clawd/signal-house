@@ -47,15 +47,15 @@ async function runRefresh(): Promise<void> {
       }
     }
 
-    const sessionsConfig: {
-      periodDays?: number
-      opencodeCommand?: string
-    } = {}
+    const sessionsConfig: import('../lib/sessions/types').SessionCollectorConfig = {}
     if (process.env.SESSIONS_PERIOD_DAYS) {
       const days = parseInt(process.env.SESSIONS_PERIOD_DAYS, 10)
       if (!isNaN(days) && days > 0) {
         sessionsConfig.periodDays = days
       }
+    }
+    if (process.env.OPENCODE_BIN) {
+      sessionsConfig.opencodeBin = process.env.OPENCODE_BIN
     }
     if (process.env.OPENCODE_COMMAND) {
       sessionsConfig.opencodeCommand = process.env.OPENCODE_COMMAND

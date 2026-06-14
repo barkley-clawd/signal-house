@@ -1,6 +1,7 @@
 export interface SessionCollectorConfig {
   periodDays?: number
   opencodeCommand?: string
+  opencodeBin?: string
 }
 
 export interface SessionCollectorResult {
