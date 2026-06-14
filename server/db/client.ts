@@ -5,7 +5,7 @@ import { SQL, SCHEMA_VERSION } from './schema'
 import type { MetricSnapshot, SnapshotRow, LatestState } from '../../types/snapshot'
 import type { AggregateType } from '../../types/aggregates'
 
-const DB_DIR = join(process.cwd(), '.data')
+const DB_DIR = process.env['DB_DIR'] || join(process.cwd(), '.data')
 const DB_PATH = join(DB_DIR, 'metrics.db')
 
 let _db: SqlJsDatabase | null = null
@@ -28,13 +28,13 @@ export async function initDb(): Promise<SqlJsDatabase> {
 }
 
 function migrate(db: SqlJsDatabase): void {
+  db.run(SQL.createTables)
   const stmt = db.prepare(
     `SELECT value FROM latest_state WHERE key = 'schema_version'`
   )
   const current = stmt.step() ? Number(stmt.getAsObject().value) : 0
   stmt.free()
   if (current < SCHEMA_VERSION) {
-    db.run(SQL.createTables)
     db.run(SQL.upsertLatestState, {
       '@key': 'schema_version',
       '@value': String(SCHEMA_VERSION),
