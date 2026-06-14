@@ -98,41 +98,89 @@ This keeps the dashboard simple, inspectable, and easy to run on the machine tha
 
 ## Local development
 
-Install and run:
+### Prerequisites
+
+- **Node.js 18+** and **npm** (or **pnpm** if preferred)
+- **OpenCode CLI** (for session usage metrics — optional, falls back gracefully)
+
+### Install and run
 
 ```bash
-pnpm install
-pnpm dev --host 0.0.0.0
+# Install dependencies
+npm install
+
+# Start the dev server (bound to 0.0.0.0 for LAN access)
+npm run dev
 ```
 
-Expected local URL:
+The `--host 0.0.0.0` flag is set in `package.json` so the dev server is reachable from other devices on the same network.
 
-```text
-http://localhost:3000
+### Expected URLs
+
+| Location | URL |
+|----------|-----|
+| Local machine | `http://localhost:3000` |
+| LAN (other device) | `http://<host-lan-ip>:3000` |
+
+Find the host LAN IP with:
+
+```bash
+# Linux
+hostname -I | awk '{print $1}'
+
+# macOS
+ipconfig getifaddr en0
 ```
 
-Expected LAN URL pattern:
+### Configuring data sources
 
-```text
-http://<host-lan-ip>:3000
+Set these environment variables before starting the dev server:
+
+```bash
+# Required for GitHub data collection
+export GITHUB_TOKEN=ghp_your_token_here
+export GITHUB_OWNER=your-org-or-user
+export GITHUB_REPO=your-repo
+
+# Optional: Local git repos (comma-separated paths)
+export GIT_REPOS=/path/to/repo1,/path/to/repo2
 ```
 
-The `--host 0.0.0.0` binding matters so the dashboard is reachable from another device on the same network.
+Create a `.env` file in the project root to persist these:
 
-## Local-network access plan
+```bash
+GITHUB_TOKEN=ghp_your_token_here
+GITHUB_OWNER=your-org-or-user
+GITHUB_REPO=your-repo
+```
 
-The dashboard should be easy to view from a laptop, phone, or tablet on the same LAN as the machine running Clawd.
+### Manual data refresh
 
-Recommended setup for V1:
+Once the dashboard is running, click the **Refresh** button in the top-right corner to trigger data collection from all configured sources. The dashboard continues showing cached data while the refresh runs in the background. If a refresh is already in progress, subsequent requests are rejected until it completes.
 
-- bind the dev server to `0.0.0.0`
-- keep the frontend and backend on the same origin
-- avoid CORS complexity
-- print the host LAN address in the README or app header once the app exists
+GitHub rate limits apply. Cached data is kept and displayed even when GitHub is slow or unreachable, with a "stale data" indicator when the cache is older than 15 minutes.
 
-Firewall note:
+### Firewall note
 
-- if the OS firewall blocks port `3000`, allow local LAN access for that port
+If the OS firewall blocks port `3000`, allow LAN access for that port:
+
+```bash
+# Linux (iptables)
+sudo iptables -A INPUT -p tcp --dport 3000 -j ACCEPT
+
+# Linux (firewalld)
+sudo firewall-cmd --add-port=3000/tcp
+```
+
+### Type checking and tests
+
+```bash
+# TypeScript type check
+npm run typecheck
+
+# Run tests
+npm test
+```
 
 ## Data sync and ingestion
 

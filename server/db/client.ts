@@ -128,18 +128,48 @@ export function getAggregatesByType(type: AggregateType, limit = 10): unknown[] 
   return results
 }
 
+export function setRefreshInProgress(inProgress: boolean): void {
+  const db = getDb()
+  db.run(SQL.upsertLatestState, {
+    '@key': 'refresh_in_progress',
+    '@value': inProgress ? 'true' : 'false',
+  })
+  save()
+}
+
+export function getRefreshInProgress(): boolean {
+  const db = getDb()
+  const stmt = db.prepare(SQL.getLatestState)
+  stmt.bind({ '@key': 'refresh_in_progress' })
+  const result = stmt.step() ? String(stmt.getAsObject().value) : 'false'
+  stmt.free()
+  return result === 'true'
+}
+
 export function getLatestState(): LatestState {
   const snapshot = getLatestSnapshot()
   const db = getDb()
-  const stmt = db.prepare(SQL.getLatestState)
-  stmt.bind({ '@key': 'last_successful_refresh' })
-  const lastRefresh = stmt.step() ? String(stmt.getAsObject().value) : null
-  stmt.free()
+
+  const keyStmt = db.prepare(SQL.getLatestState)
+  keyStmt.bind({ '@key': 'last_successful_refresh' })
+  const lastRefresh = keyStmt.step() ? String(keyStmt.getAsObject().value) : null
+  keyStmt.free()
+
+  const refreshInProgress = getRefreshInProgress()
+
+  const STALE_THRESHOLD_MS = 15 * 60 * 1000
+  let isStale = true
+  if (lastRefresh) {
+    const elapsed = Date.now() - new Date(lastRefresh).getTime()
+    isStale = elapsed > STALE_THRESHOLD_MS
+  }
+
   return {
     snapshot,
     lastRefreshAt: lastRefresh,
     lastSuccessfulRefreshAt: lastRefresh,
-    refreshInProgress: false,
+    refreshInProgress,
+    isStale,
   }
 }
 

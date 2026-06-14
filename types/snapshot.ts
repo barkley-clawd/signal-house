@@ -41,4 +41,5 @@ export interface LatestState {
   lastRefreshAt: string | null
   lastSuccessfulRefreshAt: string | null
   refreshInProgress: boolean
+  isStale: boolean
 }
