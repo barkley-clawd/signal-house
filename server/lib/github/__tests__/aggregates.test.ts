@@ -169,6 +169,82 @@ describe('deriveCI', () => {
     expect(result.averageDurationMs).toBeGreaterThan(0)
   })
 
+  it('computes average duration correctly', () => {
+    const checks = [
+      makeCheckRun({ id: '1', createdAt: '2025-01-01T00:00:00Z', conclusion: 'success', status: 'completed', completedAt: '2025-01-01T01:00:00Z' }),
+      makeCheckRun({ id: '2', createdAt: '2025-01-01T00:00:00Z', conclusion: 'success', status: 'completed', completedAt: '2025-01-01T03:00:00Z' }),
+    ]
+    const result = deriveCI(checks, ps, pe)
+    const expected1 = 60 * 60 * 1000
+    const expected2 = 3 * 60 * 60 * 1000
+    expect(result.averageDurationMs).toBe((expected1 + expected2) / 2)
+  })
+
+  it('returns null averageDurationMs when no runs have completedAt', () => {
+    const checks = [
+      makeCheckRun({ id: '1', createdAt: '2025-01-05T00:00:00Z', conclusion: 'success', status: 'completed', completedAt: null }),
+    ]
+    const result = deriveCI(checks, ps, pe)
+    expect(result.totalRuns).toBe(1)
+    expect(result.averageDurationMs).toBeNull()
+  })
+
+  it('treats timed_out as failure', () => {
+    const checks = [
+      makeCheckRun({ id: '1', createdAt: '2025-01-05T00:00:00Z', conclusion: 'success', status: 'completed', completedAt: '2025-01-05T01:00:00Z' }),
+      makeCheckRun({ id: '2', createdAt: '2025-01-06T00:00:00Z', conclusion: 'timed_out', status: 'completed', completedAt: '2025-01-06T01:00:00Z' }),
+    ]
+    const result = deriveCI(checks, ps, pe)
+    expect(result.passCount).toBe(1)
+    expect(result.failCount).toBe(1)
+    expect(result.passRate).toBeCloseTo(0.5, 2)
+  })
+
+  it('does not count cancelled or skipped runs as pass or fail', () => {
+    const checks = [
+      makeCheckRun({ id: '1', createdAt: '2025-01-05T00:00:00Z', conclusion: 'success', status: 'completed', completedAt: '2025-01-05T01:00:00Z' }),
+      makeCheckRun({ id: '2', createdAt: '2025-01-06T00:00:00Z', conclusion: 'cancelled', status: 'completed', completedAt: '2025-01-06T01:00:00Z' }),
+      makeCheckRun({ id: '3', createdAt: '2025-01-07T00:00:00Z', conclusion: 'skipped', status: 'completed', completedAt: '2025-01-07T01:00:00Z' }),
+      makeCheckRun({ id: '4', createdAt: '2025-01-08T00:00:00Z', conclusion: 'action_required', status: 'completed', completedAt: '2025-01-08T01:00:00Z' }),
+    ]
+    const result = deriveCI(checks, ps, pe)
+    expect(result.totalRuns).toBe(4)
+    expect(result.passCount).toBe(1)
+    expect(result.failCount).toBe(0)
+    expect(result.passRate).toBeCloseTo(0.25, 2)
+  })
+
+  it('excludes in-progress and queued runs', () => {
+    const checks = [
+      makeCheckRun({ id: '1', createdAt: '2025-01-05T00:00:00Z', conclusion: 'success', status: 'completed', completedAt: '2025-01-05T01:00:00Z' }),
+      makeCheckRun({ id: '2', createdAt: '2025-01-06T00:00:00Z', conclusion: null, status: 'in_progress', completedAt: null }),
+      makeCheckRun({ id: '3', createdAt: '2025-01-07T00:00:00Z', conclusion: null, status: 'queued', completedAt: null }),
+    ]
+    const result = deriveCI(checks, ps, pe)
+    expect(result.totalRuns).toBe(1)
+    expect(result.passCount).toBe(1)
+  })
+
+  it('excludes runs outside the period', () => {
+    const checks = [
+      makeCheckRun({ id: '1', createdAt: '2024-12-01T00:00:00Z', conclusion: 'success', status: 'completed', completedAt: '2024-12-01T01:00:00Z' }),
+      makeCheckRun({ id: '2', createdAt: '2025-02-01T00:00:00Z', conclusion: 'success', status: 'completed', completedAt: '2025-02-01T01:00:00Z' }),
+    ]
+    const result = deriveCI(checks, ps, pe)
+    expect(result.totalRuns).toBe(0)
+    expect(result.passRate).toBe(0)
+  })
+
+  it('handles null conclusion on completed runs', () => {
+    const checks = [
+      makeCheckRun({ id: '1', createdAt: '2025-01-05T00:00:00Z', conclusion: null, status: 'completed', completedAt: '2025-01-05T01:00:00Z' }),
+    ]
+    const result = deriveCI(checks, ps, pe)
+    expect(result.totalRuns).toBe(1)
+    expect(result.passCount).toBe(0)
+    expect(result.failCount).toBe(0)
+  })
+
   it('has passRate 0 on no runs', () => {
     const result = deriveCI([], ps, pe)
     expect(result.totalRuns).toBe(0)

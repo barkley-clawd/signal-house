@@ -44,7 +44,7 @@ export interface GHWorkflowRunRaw {
   id: number
   name: string
   status: 'queued' | 'in_progress' | 'completed'
-  conclusion: 'success' | 'failure' | 'cancelled' | 'skipped' | 'timed_out' | 'action_required' | null
+  conclusion: 'success' | 'failure' | 'neutral' | 'cancelled' | 'skipped' | 'timed_out' | 'action_required' | 'stale' | 'startup_failure' | null
   created_at: string
   updated_at: string
   head_branch: string
