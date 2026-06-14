@@ -152,6 +152,42 @@ describe('computeDailyMetrics', () => {
     }
   })
 
+  it('always includes capturedAt day even when aggregate range does not cover it', () => {
+    const snapshot = makeSnapshot({
+      capturedAt: '2026-06-05T12:00:00Z',
+      aggregates: {
+        throughput: {
+          periodStart: '2026-06-01T00:00:00Z',
+          periodEnd: '2026-06-04T23:59:59Z',
+          issuesClosed: 0,
+          issuesOpened: 0,
+          prsMerged: 0,
+          prsCreated: 0,
+          totalCommits: 0,
+        },
+        cycleTime: null,
+        ci: null,
+        staleWork: {
+          asOf: '2026-06-05T12:00:00Z',
+          staleIssues: 0,
+          stalePRs: 0,
+          staleThresholdDays: 14,
+          oldestItemDays: null,
+        },
+        sessionUsage: null,
+        computedAt: '2026-06-05T12:00:00Z',
+      },
+    })
+
+    const rows = computeDailyMetrics(snapshot)
+    expect(rows.some(r => r.day === '2026-06-05')).toBe(true)
+    const todayRow = rows.find(r => r.day === '2026-06-05')
+    expect(todayRow!.issuesOpened).toBe(0)
+    expect(todayRow!.totalCommits).toBe(0)
+    expect(todayRow!.staleIssues).toBe(0)
+    expect(todayRow!.capturedAt).toBe('2026-06-05T12:00:00Z')
+  })
+
   it('sorts rows by descending day', () => {
     const snapshot = makeSnapshot({
       issues: [

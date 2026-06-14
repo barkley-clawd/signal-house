@@ -78,6 +78,8 @@ export function computeDailyMetrics(snapshot: MetricSnapshot): DailyMetricsInser
     for (const day of aggDays) allDays.add(day)
   }
 
+  allDays.add(toDayKey(capturedAt))
+
   const cycleTime = snapshot.aggregates.cycleTime as CycleTimeAggregate | null
   const ci = snapshot.aggregates.ci as CIAggregate | null
   const staleWork = snapshot.aggregates.staleWork
