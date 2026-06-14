@@ -86,6 +86,97 @@ describe('createApiClient', () => {
     expect(prs[0]!.repo).toBe('test/repo')
   })
 
+  it('maps check runs from GitHub API response', async () => {
+    let callCount = 0
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    fetchSpy.mockImplementation(() => {
+      callCount++
+      const body = callCount === 1
+        ? { workflows: [{ id: 1, name: 'CI Pipeline' }] }
+        : [
+            {
+              id: 100, name: 'test', status: 'completed', conclusion: 'success',
+              created_at: '2025-01-06T00:00:00Z', updated_at: '2025-01-06T01:00:00Z',
+              head_branch: 'main', html_url: '', run_started_at: '2025-01-06T00:00:00Z',
+              event: 'push', workflow_id: 1,
+            },
+            {
+              id: 101, name: 'lint', status: 'completed', conclusion: 'failure',
+              created_at: '2025-01-07T00:00:00Z', updated_at: '2025-01-07T02:00:00Z',
+              head_branch: 'feat', html_url: '', run_started_at: '2025-01-07T00:00:00Z',
+              event: 'pull_request', workflow_id: 1,
+            },
+          ]
+      return Promise.resolve(new Response(JSON.stringify(body), {
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+      }))
+    })
+
+    const client = createApiClient({ token: 'tok', baseUrl: 'https://api.github.com/repos/test/repo' })
+    const checks = await client.fetchCheckRuns()
+
+    expect(checks).toHaveLength(2)
+    expect(checks[0]!.id).toBe('100')
+    expect(checks[0]!.conclusion).toBe('success')
+    expect(checks[0]!.status).toBe('completed')
+    expect(checks[0]!.completedAt).toBe('2025-01-06T01:00:00Z')
+    expect(checks[0]!.workflowName).toBe('CI Pipeline')
+    expect(checks[0]!.branch).toBe('main')
+    expect(checks[1]!.conclusion).toBe('failure')
+    expect(checks[1]!.branch).toBe('feat')
+  })
+
+  it('maps in-progress check runs without completedAt', async () => {
+    let callCount = 0
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    fetchSpy.mockImplementation(() => {
+      callCount++
+      const body = callCount === 1
+        ? { workflows: [] }
+        : [
+            {
+              id: 200, name: 'test', status: 'in_progress', conclusion: null,
+              created_at: '2025-01-06T00:00:00Z', updated_at: '2025-01-06T01:00:00Z',
+              head_branch: 'main', html_url: '', run_started_at: '2025-01-06T00:00:00Z',
+              event: 'push', workflow_id: 99,
+            },
+          ]
+      return Promise.resolve(new Response(JSON.stringify(body), {
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+      }))
+    })
+
+    const client = createApiClient({ token: 'tok', baseUrl: 'https://api.github.com/repos/test/repo' })
+    const checks = await client.fetchCheckRuns()
+
+    expect(checks).toHaveLength(1)
+    expect(checks[0]!.status).toBe('in_progress')
+    expect(checks[0]!.conclusion).toBeNull()
+    expect(checks[0]!.completedAt).toBeNull()
+  })
+
+  it('fetchCheckRuns falls back to Workflow id when workflow fetch fails', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    fetchSpy
+      .mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200, headers: new Headers({ 'content-type': 'application/json' }) }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([
+        {
+          id: 300, name: 'test', status: 'completed', conclusion: 'success',
+          created_at: '2025-01-06T00:00:00Z', updated_at: '2025-01-06T01:00:00Z',
+          head_branch: 'main', html_url: '', run_started_at: '2025-01-06T00:00:00Z',
+          event: 'push', workflow_id: 42,
+        },
+      ]), { status: 200, headers: new Headers({ 'content-type': 'application/json' }) }))
+
+    const client = createApiClient({ token: 'tok', baseUrl: 'https://api.github.com/repos/test/repo' })
+    const checks = await client.fetchCheckRuns()
+
+    expect(checks).toHaveLength(1)
+    expect(checks[0]!.workflowName).toBe('Workflow 42')
+  })
+
   it('handles API errors gracefully', async () => {
     mockFetch(500, { message: 'Internal Server Error' })
     const client = createApiClient({ token: 'tok', baseUrl: 'https://api.github.com/repos/test/repo' })

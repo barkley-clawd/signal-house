@@ -179,15 +179,33 @@ sudo iptables -A INPUT -p tcp --dport 3000 -j ACCEPT
 sudo firewall-cmd --add-port=3000/tcp
 ```
 
-### Type checking and tests
+### Local verification
+
+Run the same commands the CI workflow uses:
 
 ```bash
+# Install dependencies from the lockfile
+npm ci
+
+# Run the test suite
+npm test
+
 # TypeScript type check
 npm run typecheck
 
-# Run tests
-npm test
+# Production build
+npm run build
 ```
+
+### 28-day regression coverage expectations
+
+The 28-day dashboard work should keep these regressions covered as the data model, API, and UI evolve:
+
+- daily window responses must keep their 28-day shape stable
+- missing days must stay explicit instead of being silently filled in
+- same-day refresh reruns must upsert today's data without rewriting earlier days
+- refresh-in-progress and refresh failure states must still clear cleanly
+- charts and summary cards must keep reading the 28-day period honestly on wider and narrower screens
 
 ## Data sync and ingestion
 
