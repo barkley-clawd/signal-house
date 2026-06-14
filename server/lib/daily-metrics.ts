@@ -34,6 +34,7 @@ function countByDay<T>(
 
 export function computeDailyMetrics(snapshot: MetricSnapshot): DailyMetricsInsert[] {
   const capturedAt = snapshot.capturedAt
+  const capturedDay = toDayKey(capturedAt)
   const source = snapshot.metadata.source
   const warnings: string[] = snapshot.metadata.errors.length > 0
     ? ['Partial data: ' + snapshot.metadata.errors.join('; ')]
@@ -59,6 +60,8 @@ export function computeDailyMetrics(snapshot: MetricSnapshot): DailyMetricsInser
     snapshot.sessions.filter((s) => !s.success),
     (s) => s.timestamp,
   )
+  const sessionUsageAggregate = snapshot.aggregates.sessionUsage
+  const useAggregateSessionFallback = snapshot.sessions.length === 0 && sessionUsageAggregate != null
 
   const totalCommits = snapshot.localGit.reduce((sum, r) => sum + r.recentCommits, 0)
 
@@ -122,8 +125,8 @@ export function computeDailyMetrics(snapshot: MetricSnapshot): DailyMetricsInser
       ciFailCount: ciFail,
       ciPassRate: ciTotal > 0 ? ciPass / ciTotal : null,
       ciAvgDurationMs: ci?.averageDurationMs ?? null,
-      totalSessions: sessionsByDay.get(day) || 0,
-      sessionErrorCount: sessionErrorsByDay.get(day) || 0,
+      totalSessions: sessionsByDay.get(day) || (useAggregateSessionFallback && day === capturedDay ? sessionUsageAggregate.totalSessions : 0),
+      sessionErrorCount: sessionErrorsByDay.get(day) || (useAggregateSessionFallback && day === capturedDay ? sessionUsageAggregate.errorCount : 0),
       staleIssues: staleWork.staleIssues,
       stalePrs: staleWork.stalePRs,
       warnings,

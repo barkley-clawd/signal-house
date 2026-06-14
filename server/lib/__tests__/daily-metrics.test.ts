@@ -95,6 +95,45 @@ describe('computeDailyMetrics', () => {
     expect(rows.find(r => r.day === '2026-06-02')!.sessionErrorCount).toBe(0)
   })
 
+  it('uses the session aggregate as a captured-day fallback when no per-session rows exist', () => {
+    const snapshot = makeSnapshot({
+      aggregates: {
+        throughput: {
+          periodStart: '2026-06-01T00:00:00Z',
+          periodEnd: '2026-06-05T12:00:00Z',
+          issuesClosed: 0,
+          issuesOpened: 0,
+          prsMerged: 0,
+          prsCreated: 0,
+          totalCommits: 0,
+        },
+        cycleTime: null,
+        ci: null,
+        staleWork: {
+          asOf: '2026-06-05T12:00:00Z',
+          staleIssues: 2,
+          stalePRs: 1,
+          staleThresholdDays: 14,
+          oldestItemDays: null,
+        },
+        sessionUsage: {
+          periodStart: '2026-05-06T00:00:00Z',
+          periodEnd: '2026-06-05T12:00:00Z',
+          totalSessions: 115,
+          uniqueTools: ['edit', 'search'],
+          topActions: [{ action: 'edit', count: 80 }],
+          errorCount: 3,
+        },
+        computedAt: '2026-06-05T12:00:00Z',
+      },
+    })
+
+    const rows = computeDailyMetrics(snapshot)
+    expect(rows.find(r => r.day === '2026-06-05')!.totalSessions).toBe(115)
+    expect(rows.find(r => r.day === '2026-06-05')!.sessionErrorCount).toBe(3)
+    expect(rows.find(r => r.day === '2026-06-04')!.totalSessions).toBe(0)
+  })
+
   it('includes cycle time and CI fields from aggregates', () => {
     const snapshot = makeSnapshot({
       aggregates: {
