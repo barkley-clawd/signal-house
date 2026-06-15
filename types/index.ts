@@ -33,6 +33,7 @@ export type {
   DashboardWindowCISummary,
   DashboardWindowStaleWorkSummary,
   DashboardWindowSessionSummary,
+  DashboardWindowSessionUsageSummary,
 } from './snapshot'
 
 export type {

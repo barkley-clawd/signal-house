@@ -46,6 +46,34 @@ describe('buildDashboardWindow', () => {
   })
 
   it('normalizes the response to a 28-day ascending series with explicit gaps', () => {
+    const sessionUsage = {
+      periodStart: '2026-05-18T00:00:00Z',
+      periodEnd: '2026-06-14T12:00:00Z',
+      totalSessions: 12,
+      messages: 28,
+      activeDays: 2,
+      totalCost: 12.34,
+      averageCostPerDay: 6.17,
+      averageTokensPerSession: 100,
+      medianTokensPerSession: 80,
+      inputTokens: 60,
+      outputTokens: 30,
+      cacheReadTokens: 5,
+      cacheWriteTokens: 10,
+      uniqueTools: ['edit', 'search'],
+      toolUsage: [
+        { toolName: 'edit', count: 1, percentage: 50 },
+        { toolName: 'search', count: 1, percentage: 50 },
+      ],
+      topActions: [
+        { action: 'edit', count: 1 },
+        { action: 'search', count: 1 },
+      ],
+      errorCount: 3,
+      status: 'available',
+      message: null,
+    }
+
     const window = buildDashboardWindow([
       makeRow('2026-06-14', {
         issuesOpened: 2,
@@ -84,7 +112,7 @@ describe('buildDashboardWindow', () => {
         stalePrs: 4,
         warnings: ['Partial data: local git unavailable'],
       }),
-    ], new Date('2026-06-14T12:00:00Z'))
+    ], new Date('2026-06-14T12:00:00Z'), false, sessionUsage)
 
     expect(window.startDay).toBe('2026-05-18')
     expect(window.endDay).toBe('2026-06-14')
@@ -129,6 +157,23 @@ describe('buildDashboardWindow', () => {
       status: 'available',
       message: null,
     })
+    expect(window.sessionUsage).toMatchObject({
+      periodStart: '2026-05-18T00:00:00Z',
+      periodEnd: '2026-06-14T12:00:00Z',
+      totalSessions: 12,
+      messages: 28,
+      activeDays: 2,
+      totalCost: 12.34,
+      averageCostPerDay: 6.17,
+      averageTokensPerSession: 100,
+      medianTokensPerSession: 80,
+      inputTokens: 60,
+      outputTokens: 30,
+      cacheReadTokens: 5,
+      cacheWriteTokens: 10,
+      status: 'available',
+      message: null,
+    })
     expect(window.cards.sessionUsage).toMatchObject({
       totalSessions: 12,
       sessionErrorCount: 3,
@@ -164,7 +209,7 @@ describe('buildDashboardWindow', () => {
       })
     })
 
-    const window = buildDashboardWindow(rows, new Date('2026-06-14T12:00:00Z'))
+    const window = buildDashboardWindow(rows, new Date('2026-06-14T12:00:00Z'), false, null)
 
     expect(window.days).toHaveLength(28)
     expect(window.missingDays).toHaveLength(0)
@@ -192,7 +237,25 @@ describe('buildDashboardWindow', () => {
         ciAvgDurationMs: 900,
         totalSessions: 2,
       }),
-    ], new Date('2026-06-14T12:00:00Z'), true)
+    ], new Date('2026-06-14T12:00:00Z'), true, {
+      periodStart: '2026-05-18T00:00:00Z',
+      periodEnd: '2026-06-14T12:00:00Z',
+      totalSessions: 2,
+      messages: 4,
+      activeDays: 1,
+      totalCost: 2.5,
+      averageCostPerDay: 2.5,
+      averageTokensPerSession: 100,
+      medianTokensPerSession: 80,
+      inputTokens: 60,
+      outputTokens: 30,
+      cacheReadTokens: 5,
+      cacheWriteTokens: 10,
+      uniqueTools: ['edit'],
+      toolUsage: [{ toolName: 'edit', count: 2, percentage: 100 }],
+      topActions: [{ action: 'edit', count: 2 }],
+      errorCount: 0,
+    })
 
     expect(window.cards.throughput.status).toBe('stale')
     expect(window.cards.cycleTime.status).toBe('stale')

@@ -90,6 +90,28 @@ export interface DashboardWindowSessionSummary {
   message: string | null
 }
 
+export interface DashboardWindowSessionUsageSummary {
+  periodStart: string
+  periodEnd: string
+  totalSessions: number
+  messages: number | null
+  activeDays: number | null
+  totalCost: number | null
+  averageCostPerDay: number | null
+  averageTokensPerSession: number | null
+  medianTokensPerSession: number | null
+  inputTokens: number | null
+  outputTokens: number | null
+  cacheReadTokens: number | null
+  cacheWriteTokens: number | null
+  uniqueTools: string[]
+  toolUsage: Array<{ toolName: string; count: number; percentage: number | null }>
+  topActions: Array<{ action: string; count: number }>
+  errorCount: number
+  status: DashboardPanelStatus
+  message: string | null
+}
+
 export interface DashboardWindowCoverage {
   totalDays: number
   daysWithData: number
@@ -122,6 +144,7 @@ export interface DashboardWindow {
   days: DashboardWindowDay[]
   missingDays: string[]
   latestDay: DailyMetricsRow | null
+  sessionUsage: DashboardWindowSessionUsageSummary | null
   cards: DashboardWindowCards
   coverage: DashboardWindowCoverage
   warnings: string[]

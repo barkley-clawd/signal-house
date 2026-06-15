@@ -6,10 +6,12 @@ import type {
   DashboardWindowCycleTimeSummary,
   DashboardWindowCISummary,
   DashboardPanelStatus,
+  DashboardWindowSessionUsageSummary,
   DashboardWindowSessionSummary,
   DashboardWindowStaleWorkSummary,
   DashboardWindowThroughputSummary,
 } from '../../types/snapshot'
+import type { SessionUsageAggregate } from '../../types/aggregates'
 
 const WINDOW_DAYS = 28
 
@@ -78,6 +80,77 @@ function lastRowWithCycleTime(rows: DailyMetricsRow[]): DailyMetricsRow | null {
 
 function latestRow(rows: DailyMetricsRow[]): DailyMetricsRow | null {
   return rows[rows.length - 1] ?? null
+}
+
+function buildSessionUsageSummary(
+  rows: DailyMetricsRow[],
+  aggregate: SessionUsageAggregate | null,
+): DashboardWindowSessionUsageSummary {
+  const configuredSessions = hasSessionConfig()
+  const periodStart = aggregate?.periodStart ?? rows[0]?.day ?? ''
+  const periodEnd = aggregate?.periodEnd ?? rows.at(-1)?.day ?? ''
+
+  if (!configuredSessions) {
+    return {
+      periodStart,
+      periodEnd,
+      totalSessions: aggregate?.totalSessions ?? 0,
+      messages: aggregate?.messages ?? null,
+      activeDays: aggregate?.activeDays ?? null,
+      totalCost: aggregate?.totalCost ?? null,
+      averageCostPerDay: aggregate?.averageCostPerDay ?? null,
+      averageTokensPerSession: aggregate?.averageTokensPerSession ?? null,
+      medianTokensPerSession: aggregate?.medianTokensPerSession ?? null,
+      inputTokens: aggregate?.inputTokens ?? null,
+      outputTokens: aggregate?.outputTokens ?? null,
+      cacheReadTokens: aggregate?.cacheReadTokens ?? null,
+      cacheWriteTokens: aggregate?.cacheWriteTokens ?? null,
+      uniqueTools: aggregate?.uniqueTools ?? [],
+      toolUsage: aggregate?.toolUsage ?? [],
+      topActions: aggregate?.topActions ?? [],
+      errorCount: aggregate?.errorCount ?? 0,
+      status: 'unconfigured',
+      message: 'Session metrics unavailable - configure OPENCODE_BIN or ensure opencode stats works',
+    }
+  }
+
+  const sessionTotal = aggregate?.totalSessions ?? sumBy(rows, row => row.totalSessions)
+  const sessionErrorCount = aggregate?.errorCount ?? sumBy(rows, row => row.sessionErrorCount)
+  const hasSourceError = hasWarning(rows, [/opencode stats CLI unavailable/i, /session collector/i])
+  const sessionFieldsPresent = aggregate != null
+
+  let status: DashboardPanelStatus = 'available'
+  let message: string | null = null
+
+  if (hasSourceError && !sessionFieldsPresent) {
+    status = 'unavailable'
+    message = 'Session metrics unavailable - opencode stats could not be collected'
+  } else if (!sessionFieldsPresent) {
+    status = 'empty'
+    message = 'No session activity'
+  }
+
+  return {
+    periodStart,
+    periodEnd,
+    totalSessions: sessionTotal,
+    messages: aggregate?.messages ?? null,
+    activeDays: aggregate?.activeDays ?? null,
+    totalCost: aggregate?.totalCost ?? null,
+    averageCostPerDay: aggregate?.averageCostPerDay ?? null,
+    averageTokensPerSession: aggregate?.averageTokensPerSession ?? null,
+    medianTokensPerSession: aggregate?.medianTokensPerSession ?? null,
+    inputTokens: aggregate?.inputTokens ?? null,
+    outputTokens: aggregate?.outputTokens ?? null,
+    cacheReadTokens: aggregate?.cacheReadTokens ?? null,
+    cacheWriteTokens: aggregate?.cacheWriteTokens ?? null,
+    uniqueTools: aggregate?.uniqueTools ?? [],
+    toolUsage: aggregate?.toolUsage ?? [],
+    topActions: aggregate?.topActions ?? [],
+    errorCount: sessionErrorCount,
+    status,
+    message,
+  }
 }
 
 function buildThroughputSummary(rows: DailyMetricsRow[]): DashboardWindowThroughputSummary {
@@ -212,26 +285,21 @@ function buildStaleWorkSummary(rows: DailyMetricsRow[]): DashboardWindowStaleWor
   }
 }
 
-function buildSessionSummary(rows: DailyMetricsRow[]): DashboardWindowSessionSummary {
-  const configuredSessions = hasSessionConfig()
-  const sessionTotal = sumBy(rows, row => row.totalSessions)
-  const hasSourceError = hasWarning(rows, [/opencode stats CLI unavailable/i, /session collector/i])
+function buildSessionSummary(sessionUsage: DashboardWindowSessionUsageSummary | null): DashboardWindowSessionSummary {
   let status: DashboardPanelStatus = 'available'
   let message: string | null = null
 
-  if (!configuredSessions) {
-    status = 'unconfigured'
-    message = 'Session metrics unavailable - configure OPENCODE_BIN or ensure opencode stats works'
-  } else if (hasSourceError && sessionTotal === 0) {
+  if (!sessionUsage) {
     status = 'unavailable'
-    message = 'Session metrics unavailable - opencode stats could not be collected'
-  } else if (sessionTotal === 0) {
-    message = 'No session activity'
+    message = 'Session metrics unavailable'
+  } else {
+    status = sessionUsage.status
+    message = sessionUsage.message
   }
 
   return {
-    totalSessions: sessionTotal,
-    sessionErrorCount: sumBy(rows, row => row.sessionErrorCount),
+    totalSessions: sessionUsage?.totalSessions ?? 0,
+    sessionErrorCount: sessionUsage?.errorCount ?? 0,
     status,
     message,
   }
@@ -251,7 +319,12 @@ function buildCoverage(rows: DailyMetricsRow[], missingDays: string[], warnings:
   }
 }
 
-export function buildDashboardWindow(rows: DailyMetricsRow[], now = new Date(), isStale = false): DashboardWindow {
+export function buildDashboardWindow(
+  rows: DailyMetricsRow[],
+  now = new Date(),
+  isStale = false,
+  sessionUsageAggregate: SessionUsageAggregate | null = null,
+): DashboardWindow {
   const endDay = toUtcDay(now)
   const days = buildUtcDays(endDay)
   const rowsByDay = new Map(rows.map(row => [row.day, row]))
@@ -279,14 +352,19 @@ export function buildDashboardWindow(rows: DailyMetricsRow[], now = new Date(), 
   const cycleTime = buildCycleTimeSummary(presentRows)
   const ci = buildCiSummary(presentRows)
   const staleWork = buildStaleWorkSummary(presentRows)
-  const sessionUsage = buildSessionSummary(presentRows)
+  const sessionUsage = buildSessionUsageSummary(presentRows, sessionUsageAggregate)
+  const sessionSummary = buildSessionSummary(sessionUsage)
 
   if (isStale) {
-    for (const panel of [throughput, cycleTime, ci, staleWork, sessionUsage]) {
+    for (const panel of [throughput, cycleTime, ci, staleWork, sessionSummary]) {
       if (panel.status === 'available') {
         panel.status = 'stale'
         panel.message = panel.message ?? 'Cached data may be stale'
       }
+    }
+    if (sessionUsage && sessionUsage.status === 'available') {
+      sessionUsage.status = 'stale'
+      sessionUsage.message = sessionUsage.message ?? 'Cached data may be stale'
     }
   }
 
@@ -296,12 +374,13 @@ export function buildDashboardWindow(rows: DailyMetricsRow[], now = new Date(), 
     days: windowRows,
     missingDays,
     latestDay: latestRow(presentRows),
+    sessionUsage,
     cards: {
       throughput,
       cycleTime,
       ci,
       staleWork,
-      sessionUsage,
+      sessionUsage: sessionSummary,
     },
     coverage: buildCoverage(presentRows, missingDays, rowWarnings),
     warnings,

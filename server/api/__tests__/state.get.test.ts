@@ -59,7 +59,37 @@ describe('GET /api/state', () => {
 
   it('returns the latest state with a normalized 28-day dashboard window', async () => {
     const state = {
-      snapshot: { id: 'snap-1', capturedAt: new Date().toISOString() },
+      snapshot: {
+        id: 'snap-1',
+        capturedAt: new Date().toISOString(),
+        aggregates: {
+          sessionUsage: {
+            periodStart: '2026-05-18T00:00:00Z',
+            periodEnd: '2026-06-14T12:00:00Z',
+            totalSessions: 17,
+            messages: 28,
+            activeDays: 2,
+            totalCost: 12.34,
+            averageCostPerDay: 6.17,
+            averageTokensPerSession: 100,
+            medianTokensPerSession: 80,
+            inputTokens: 60,
+            outputTokens: 30,
+            cacheReadTokens: 5,
+            cacheWriteTokens: 10,
+            uniqueTools: ['edit', 'search'],
+            toolUsage: [
+              { toolName: 'edit', count: 1, percentage: 50 },
+              { toolName: 'search', count: 1, percentage: 50 },
+            ],
+            topActions: [
+              { action: 'edit', count: 1 },
+              { action: 'search', count: 1 },
+            ],
+            errorCount: 3,
+          },
+        },
+      },
       lastRefreshAt: '2026-06-14T12:00:00.000Z',
       lastSuccessfulRefreshAt: '2026-06-14T12:00:00.000Z',
       refreshInProgress: false,
@@ -135,7 +165,33 @@ describe('GET /api/state', () => {
         startDay: '2026-05-18',
         endDay: '2026-06-14',
         missingDays: expect.arrayContaining(['2026-06-13']),
-        latestDay: expect.objectContaining({ day: '2026-06-14' }),
+        sessionUsage: {
+          periodStart: '2026-05-18T00:00:00Z',
+          periodEnd: '2026-06-14T12:00:00Z',
+          totalSessions: 17,
+          messages: 28,
+          activeDays: 2,
+          totalCost: 12.34,
+          averageCostPerDay: 6.17,
+          averageTokensPerSession: 100,
+          medianTokensPerSession: 80,
+          inputTokens: 60,
+          outputTokens: 30,
+          cacheReadTokens: 5,
+          cacheWriteTokens: 10,
+          uniqueTools: ['edit', 'search'],
+          toolUsage: [
+            { toolName: 'edit', count: 1, percentage: 50 },
+            { toolName: 'search', count: 1, percentage: 50 },
+          ],
+          topActions: [
+            { action: 'edit', count: 1 },
+            { action: 'search', count: 1 },
+          ],
+          errorCount: 3,
+          status: 'available',
+          message: null,
+        },
         cards: {
           throughput: {
             issuesOpened: 4,
@@ -190,6 +246,8 @@ describe('GET /api/state', () => {
         },
       },
     })
+
+    expect(result.dashboardWindow.latestDay?.day).toBe('2026-06-14')
 
     expect(result.dashboardWindow.days).toHaveLength(28)
     expect(result.dashboardWindow.days[0]).toMatchObject({ day: '2026-05-18', isGap: true, metrics: null })
