@@ -27,9 +27,9 @@ describe('GET /api/state', () => {
     vi.clearAllMocks()
     vi.stubEnv('GITHUB_TOKEN', 'ghp_test')
     vi.stubEnv('GITHUB_OWNER', 'barkley-clawd')
-    vi.stubEnv('GITHUB_REPO', 'engineering-metrics-dashboard')
-    vi.stubEnv('GIT_REPOS', '/tmp/repo-a')
-    vi.stubEnv('SESSIONS_PERIOD_DAYS', '30')
+    vi.stubEnv('SECRET_HOUSE_GITHUB_REPO', 'signal-house')
+    vi.stubEnv('SECRET_HOUSE_GIT_REPOS', '/tmp/repo-a')
+    vi.stubEnv('SECRET_HOUSE_SESSIONS_PERIOD_DAYS', '30')
     mocks.mockGetLatestState.mockReturnValue({
       snapshot: null,
       lastRefreshAt: null,

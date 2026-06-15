@@ -1,102 +1,80 @@
-# Engineering Metrics Dashboard
+# Signal House
 
-Live operator dashboard for Clawd engineering health.
+Signal House is the internal dashboard I’m building to tell me whether Clawd is actually healthy or just looking busy.
 
-## What this is
+It is deliberately not a generic analytics toy. It is meant for the person running the system day to day, so the questions are blunt:
 
-This project is a small internal dashboard that shows whether engineering work is flowing, where it is getting stuck, and whether the toolchain is behaving itself.
+- Is work flowing?
+- Where is it getting stuck?
+- Are PRs moving?
+- Is CI behaving?
+- Are we collecting useful signal or just accumulating noise?
 
-It is for the person running Clawd day to day, not for end users.
+If the app cannot answer those questions quickly, it is not doing its job.
 
-## What problem it solves
+## Why this exists
 
-The goal is to replace guesswork with a fast at-a-glance view of:
+I wanted a dashboard that does one thing well: surface the health of the workstream without making me dig through GitHub tabs, logs, or terminal history every time.
 
-- task throughput
-- open vs completed work
-- PR creation and merge flow
-- cycle time and stale work
-- CI / check failures
-- repository activity
-- tool and session usage
-- recent errors or warnings
+The reason for the name is the same reason for the build. I wanted something that feels like a place where useful signal lives, not another sterile metrics box.
 
-The dashboard should answer one blunt question: is Clawd healthy and improving, or is work quietly piling up?
+## What V1 should do
 
-## Proposed V1 scope
-
-V1 should be a single dashboard with:
+V1 should stay tight and honest:
 
 - a top-level health summary
-- a few clear trend charts
+- a few useful trend charts
 - a compact table of blocked or stale work
 - recent CI / check outcomes
 - recent tool or session usage
-- empty, loading, and error states that are obvious and honest
+- obvious empty, loading, and error states
 
-V1 should not try to be a full observability platform.
+It should not try to become a full observability platform. That is how projects get bloated and useless.
 
-## Stack choice
+## Why this stack
 
-Recommended stack:
+Signal House uses:
 
 - **Nuxt 3**
 - **Vue 3**
 - **TypeScript**
 - **Nuxt UI**
 - **Pinia**
-- **ECharts** or another lightweight chart library
-- **SQLite** for local cached metric snapshots
+- **ECharts**
+- **SQLite**
 
-### Why this stack
+I picked this stack because it gives me the shortest path to something shippable without painting myself into a corner.
 
-Nuxt gives us a clean full-stack structure, good dev ergonomics, and an easy path from local-only app to a simple deployed service later.
+Nuxt gives me a clean full-stack structure and keeps the server and UI in one place. Vue is a good fit for dashboard UI. TypeScript keeps the moving parts honest. SQLite is boring in the best possible way for local cached snapshots. ECharts is good enough for the charts without forcing me to build a charting system from scratch.
 
-Vue fits a dashboard UI well and keeps the component model straightforward.
-
-Nuxt UI is a good trade here because it gives a polished operator-style interface quickly without needing to assemble every card, table, dialog, and state treatment by hand.
-
-That is the main reason to use a framework here: not because it is trendy, but because it shortens the path to a good-looking, usable dashboard.
-
-## UI framework choice
-
-Use **Nuxt UI** for V1.
-
-Why:
-
-- it is fast to ship with
-- it already suits dense admin / dashboard layouts
-- it reduces design drift
-- it should get us to a serious operator look faster than plain Tailwind-only assembly
-
-If the dashboard later needs highly custom visualization work, the data layer should already be isolated enough that the UI can evolve without reworking the whole app.
+Nuxt UI is the real trade here: it lets the app feel like a proper operator tool quickly, instead of spending a week hand-assembling cards and tables just to rediscover why frameworks exist.
 
 ## Likely data sources
 
-V1 should use data we can realistically get without inventing a new telemetry platform first:
+The dashboard should use data that actually exists:
 
 - GitHub issues
 - GitHub pull requests
 - GitHub Actions / check runs
-- local git history from the repos on disk
-- local OpenCode / OpenClaw session metadata if available
-- local logs if they are easy to access
+- local git history from repos on disk
+- local OpenCode / OpenClaw session metadata when available
+- local logs if they are easy to ingest
 
-If a metric is not available yet, the work should create an instrumentation issue rather than pretending the data exists.
+If a metric is not available yet, the right move is to add instrumentation or file an issue, not fake the number.
 
-## Proposed architecture
+## Architecture
 
-Suggested shape:
+The shape is intentionally simple:
 
 - Nuxt server routes collect and cache metrics
-- a small local SQLite store keeps snapshots and latest aggregates
+- SQLite stores snapshots and latest aggregates locally
 - the frontend reads from local API routes only
 - refresh logic is explicit and predictable
-- data collection can be triggered on demand and later scheduled
+- data collection can be triggered manually and later scheduled
 
-This keeps the dashboard simple, inspectable, and easy to run on the machine that hosts Clawd.
+That keeps the system inspectable and easy to run on the machine that hosts Clawd.
 
-## Local development
+## Local Development
 
 ### Prerequisites
 
@@ -137,42 +115,57 @@ ipconfig getifaddr en0
 Set these environment variables before starting the dev server:
 
 ```bash
-# Required for GitHub data collection
-export GITHUB_TOKEN=ghp_your_token_here
-export GITHUB_OWNER=your-org-or-user
-export GITHUB_REPO=your-repo
+# Preferred env names for Signal House
+export SECRET_HOUSE_GITHUB_TOKEN=ghp_your_token_here
+export SECRET_HOUSE_GITHUB_OWNER=your-org-or-user
+export SECRET_HOUSE_GITHUB_REPO=your-repo
+export SECRET_HOUSE_GIT_REPOS=/path/to/repo1,/path/to/repo2
+export SECRET_HOUSE_OPENCODE_BIN=
+export SECRET_HOUSE_OPENCODE_COMMAND=opencode
+export SECRET_HOUSE_SESSIONS_PERIOD_DAYS=30
+export SECRET_HOUSE_POLLER_ENABLED=true
+export SECRET_HOUSE_POLL_INTERVAL_SECONDS=300
+export SECRET_HOUSE_POLL_STARTUP_DELAY_SECONDS=5
+export SECRET_HOUSE_RUN_ON_STARTUP=true
 
-# Optional: Local git repos (comma-separated paths)
-export GIT_REPOS=/path/to/repo1,/path/to/repo2
+# Legacy compatibility names still work for now:
+# GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO, GIT_REPOS, OPENCODE_BIN,
+# OPENCODE_COMMAND, SESSIONS_PERIOD_DAYS, METRICS_POLLER_ENABLED,
+# METRICS_POLL_INTERVAL_SECONDS, METRICS_POLL_STARTUP_DELAY_SECONDS,
+# METRICS_RUN_ON_STARTUP
 
 # Optional: Session / OpenCode CLI metrics
-# Resolved in order: config.opencodeBin > OPENCODE_BIN > $PATH 'opencode' > $HOME/.opencode/bin/opencode > fallback path > config.opencodeCommand > OPENCODE_COMMAND
+# Resolved in order: config.opencodeBin > SECRET_HOUSE_OPENCODE_BIN > $PATH 'opencode' > $HOME/.opencode/bin/opencode > fallback path > config.opencodeCommand > SECRET_HOUSE_OPENCODE_COMMAND
 # OPENCODE_COMMAND and config.opencodeCommand are compatibility-only fallbacks.
 # The collector runs `opencode stats --days <period>` and parses the overview + tool usage tables.
-export OPENCODE_BIN=
-export OPENCODE_COMMAND=opencode
-export SESSIONS_PERIOD_DAYS=30
+export SECRET_HOUSE_OPENCODE_BIN=
+export SECRET_HOUSE_OPENCODE_COMMAND=opencode
+export SECRET_HOUSE_SESSIONS_PERIOD_DAYS=30
 ```
 
 Create a `.env` file in the project root to persist these:
 
 ```bash
-GITHUB_TOKEN=ghp_your_token_here
-GITHUB_OWNER=your-org-or-user
-GITHUB_REPO=your-repo
-GIT_REPOS=/path/to/repo1,/path/to/repo2
-OPENCODE_BIN=
-OPENCODE_COMMAND=opencode # compatibility fallback only
-SESSIONS_PERIOD_DAYS=30
+SECRET_HOUSE_GITHUB_TOKEN=ghp_your_token_here
+SECRET_HOUSE_GITHUB_OWNER=your-org-or-user
+SECRET_HOUSE_GITHUB_REPO=your-repo
+SECRET_HOUSE_GIT_REPOS=/path/to/repo1,/path/to/repo2
+SECRET_HOUSE_OPENCODE_BIN=
+SECRET_HOUSE_OPENCODE_COMMAND=opencode # compatibility fallback only
+SECRET_HOUSE_SESSIONS_PERIOD_DAYS=30
+SECRET_HOUSE_POLLER_ENABLED=true
+SECRET_HOUSE_POLL_INTERVAL_SECONDS=300
+SECRET_HOUSE_POLL_STARTUP_DELAY_SECONDS=5
+SECRET_HOUSE_RUN_ON_STARTUP=true
 ```
 
-### Manual data refresh
+### Manual Data Refresh
 
 Once the dashboard is running, click the **Refresh** button in the top-right corner to trigger data collection from all configured sources. The dashboard continues showing cached data while the refresh runs in the background. If a refresh is already in progress, subsequent requests are rejected until it completes.
 
 GitHub rate limits apply. Cached data is kept and displayed even when GitHub is slow or unreachable, with a "stale data" indicator when the cache is older than 15 minutes.
 
-### Firewall note
+### Firewall Note
 
 If the OS firewall blocks port `3000`, allow LAN access for that port:
 
@@ -184,7 +177,7 @@ sudo iptables -A INPUT -p tcp --dport 3000 -j ACCEPT
 sudo firewall-cmd --add-port=3000/tcp
 ```
 
-### Local verification
+### Local Verification
 
 Run the same commands the CI workflow uses:
 

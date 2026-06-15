@@ -12,6 +12,7 @@ import type {
   DashboardWindowThroughputSummary,
 } from '../../types/snapshot'
 import type { SessionUsageAggregate } from '../../types/aggregates'
+import { getEnv } from './env'
 
 const WINDOW_DAYS = 28
 
@@ -51,15 +52,24 @@ function unique(values: string[]): string[] {
 }
 
 function hasGithubConfig(): boolean {
-  return Boolean(process.env.GITHUB_TOKEN && process.env.GITHUB_OWNER && process.env.GITHUB_REPO)
+  return Boolean(
+    getEnv(process.env, 'SECRET_HOUSE_GITHUB_TOKEN', 'GITHUB_TOKEN')
+    && getEnv(process.env, 'SECRET_HOUSE_GITHUB_OWNER', 'GITHUB_OWNER')
+    && getEnv(process.env, 'SECRET_HOUSE_GITHUB_REPO', 'GITHUB_REPO'),
+  )
 }
 
 function hasLocalGitConfig(): boolean {
-  return Boolean(process.env.GIT_REPOS && process.env.GIT_REPOS.split(',').map(part => part.trim()).filter(Boolean).length > 0)
+  const repos = getEnv(process.env, 'SECRET_HOUSE_GIT_REPOS', 'GIT_REPOS')
+  return Boolean(repos && repos.split(',').map(part => part.trim()).filter(Boolean).length > 0)
 }
 
 function hasSessionConfig(): boolean {
-  return Boolean(process.env.SESSIONS_PERIOD_DAYS || process.env.OPENCODE_BIN || process.env.OPENCODE_COMMAND)
+  return Boolean(
+    getEnv(process.env, 'SECRET_HOUSE_SESSIONS_PERIOD_DAYS', 'SESSIONS_PERIOD_DAYS')
+    || getEnv(process.env, 'SECRET_HOUSE_OPENCODE_BIN', 'OPENCODE_BIN')
+    || getEnv(process.env, 'SECRET_HOUSE_OPENCODE_COMMAND', 'OPENCODE_COMMAND'),
+  )
 }
 
 function hasWarning(rows: DailyMetricsRow[], patterns: RegExp[]): boolean {

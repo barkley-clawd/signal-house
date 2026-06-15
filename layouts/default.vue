@@ -3,8 +3,8 @@
     <main class="main">
       <header class="shell-header">
         <div>
-          <p class="eyebrow">Engineering Metrics Dashboard</p>
-          <h1 class="title">Clawd Metrics</h1>
+          <p class="eyebrow">Signal House</p>
+          <h1 class="title">Signal House</h1>
         </div>
         <p class="subtitle">Single-dashboard shell for operator visibility.</p>
       </header>

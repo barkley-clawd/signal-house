@@ -24,7 +24,21 @@ describe('getPollerConfig', () => {
     })
   })
 
-  it('clamps and parses runtime values', () => {
+  it('prefers the new SECRET_HOUSE prefix', () => {
+    vi.stubEnv('SECRET_HOUSE_POLLER_ENABLED', 'true')
+    vi.stubEnv('SECRET_HOUSE_POLL_INTERVAL_SECONDS', '2')
+    vi.stubEnv('SECRET_HOUSE_RUN_ON_STARTUP', 'false')
+    vi.stubEnv('SECRET_HOUSE_POLL_STARTUP_DELAY_SECONDS', '120')
+
+    expect(getPollerConfig()).toEqual({
+      enabled: true,
+      intervalMs: 15000,
+      runOnStartup: false,
+      startupDelayMs: 120000,
+    })
+  })
+
+  it('falls back to the legacy METRICS prefix', () => {
     vi.stubEnv('METRICS_POLLER_ENABLED', 'true')
     vi.stubEnv('METRICS_POLL_INTERVAL_SECONDS', '2')
     vi.stubEnv('METRICS_RUN_ON_STARTUP', 'false')

@@ -1,5 +1,6 @@
 import { initDb, setRefreshInProgress, getRefreshInProgress, setRefreshRunState, setRefreshRunStatus } from '../../db/client'
 import { createOrchestrator } from '../orchestrator'
+import { getEnv } from '../env'
 import type { OrchestratorConfig, OrchestratorResult } from '../orchestrator/types'
 import type { SessionCollectorConfig } from '../sessions/types'
 
@@ -20,16 +21,20 @@ export interface RefreshRunResult {
 export function buildRefreshConfig(env: NodeJS.ProcessEnv = process.env): OrchestratorConfig {
   const config: OrchestratorConfig = {}
 
-  if (env.GITHUB_TOKEN && env.GITHUB_OWNER && env.GITHUB_REPO) {
+  const githubToken = getEnv(env, 'SECRET_HOUSE_GITHUB_TOKEN', 'GITHUB_TOKEN')
+  const githubOwner = getEnv(env, 'SECRET_HOUSE_GITHUB_OWNER', 'GITHUB_OWNER')
+  const githubRepo = getEnv(env, 'SECRET_HOUSE_GITHUB_REPO', 'GITHUB_REPO')
+  if (githubToken && githubOwner && githubRepo) {
     config.github = {
-      owner: env.GITHUB_OWNER,
-      repo: env.GITHUB_REPO,
-      token: env.GITHUB_TOKEN,
+      owner: githubOwner,
+      repo: githubRepo,
+      token: githubToken,
     }
   }
 
-  if (env.GIT_REPOS) {
-    const paths = env.GIT_REPOS.split(',').map(path => path.trim()).filter(Boolean)
+  const gitRepos = getEnv(env, 'SECRET_HOUSE_GIT_REPOS', 'GIT_REPOS')
+  if (gitRepos) {
+    const paths = gitRepos.split(',').map(path => path.trim()).filter(Boolean)
     if (paths.length > 0) {
       config.localGit = {
         repos: paths.map(path => ({ path })),
@@ -38,17 +43,20 @@ export function buildRefreshConfig(env: NodeJS.ProcessEnv = process.env): Orches
   }
 
   const sessionsConfig: SessionCollectorConfig = {}
-  if (env.SESSIONS_PERIOD_DAYS) {
-    const days = Number.parseInt(env.SESSIONS_PERIOD_DAYS, 10)
+  const sessionsPeriodDays = getEnv(env, 'SECRET_HOUSE_SESSIONS_PERIOD_DAYS', 'SESSIONS_PERIOD_DAYS')
+  if (sessionsPeriodDays) {
+    const days = Number.parseInt(sessionsPeriodDays, 10)
     if (!Number.isNaN(days) && days > 0) {
       sessionsConfig.periodDays = days
     }
   }
-  if (env.OPENCODE_BIN) {
-    sessionsConfig.opencodeBin = env.OPENCODE_BIN
+  const opencodeBin = getEnv(env, 'SECRET_HOUSE_OPENCODE_BIN', 'OPENCODE_BIN')
+  if (opencodeBin) {
+    sessionsConfig.opencodeBin = opencodeBin
   }
-  if (env.OPENCODE_COMMAND) {
-    sessionsConfig.opencodeCommand = env.OPENCODE_COMMAND
+  const opencodeCommand = getEnv(env, 'SECRET_HOUSE_OPENCODE_COMMAND', 'OPENCODE_COMMAND')
+  if (opencodeCommand) {
+    sessionsConfig.opencodeCommand = opencodeCommand
   }
   if (Object.keys(sessionsConfig).length > 0) {
     config.sessions = sessionsConfig

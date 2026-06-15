@@ -2,6 +2,7 @@ import initSqlJs, { type Database as SqlJsDatabase } from 'sql.js'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { SQL, SCHEMA_VERSION } from './schema'
+import { getBooleanEnv } from '../lib/env'
 import type { MetricSnapshot, SnapshotRow, LatestState, RefreshRunRecord, RefreshRunState, RefreshSourceHealth, RefreshRunStatus } from '../../types/snapshot'
 import type { AggregateType } from '../../types/aggregates'
 import type { DailyMetricsInsert, DailyMetricsRow } from '../../types/daily-metrics'
@@ -242,7 +243,7 @@ export function getLatestState(): LatestState {
     refreshInProgress,
     isStale,
     staleReason,
-    pollerEnabled: process.env.METRICS_POLLER_ENABLED === 'true',
+    pollerEnabled: getBooleanEnv(process.env, 'SECRET_HOUSE_POLLER_ENABLED', 'METRICS_POLLER_ENABLED'),
     refreshStatus: refreshState.status,
     lastFailureAt: refreshState.lastFailureAt,
     lastSuccessAt: refreshState.lastSuccessAt,

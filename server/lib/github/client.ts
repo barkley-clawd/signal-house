@@ -15,7 +15,7 @@ export function createApiClient(opts: PAClientOptions) {
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github.v3+json',
     Authorization: `Bearer ${opts.token}`,
-    'User-Agent': 'engineering-metrics-dashboard/1.0',
+    'User-Agent': 'signal-house/1.0',
   }
   const segments = baseUrl.split('/')
   const owner = segments.at(-2) ?? ''
