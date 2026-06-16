@@ -1,106 +1,142 @@
 # Signal House
 
-Signal House is the internal dashboard I’m building to tell me whether Clawd is actually healthy or just looking busy.
+Signal House is a local operator dashboard for Clawd.
 
-It is deliberately not a generic analytics toy. It is meant for the person running the system day to day, so the questions are blunt:
+It answers one blunt question:
 
-- Is work flowing?
-- Where is it getting stuck?
-- Are PRs moving?
-- Is CI behaving?
-- Are we collecting useful signal or just accumulating noise?
+> Is Clawd actually healthy, or just looking busy?
 
-If the app cannot answer those questions quickly, it is not doing its job.
+It is not a generic analytics dashboard. It is not a full observability platform. It is a focused workstream health screen for the person running OpenClaw day to day.
 
-## Why this exists
+Signal House should make it obvious whether work is moving, where it is getting stuck, whether PRs are progressing, whether CI is behaving, and whether the system is collecting useful signal instead of noise.
 
-I wanted a dashboard that does one thing well: surface the health of the workstream without making me dig through GitHub tabs, logs, or terminal history every time.
+## What Signal House tracks
 
-The reason for the name is the same reason for the build. I wanted something that feels like a place where useful signal lives, not another sterile metrics box.
+Signal House is built around practical operator questions:
 
-## What V1 should do
+* Is work flowing?
+* Which issues or PRs are stale?
+* Are PRs getting merged?
+* Is CI passing or failing?
+* Are checks taking longer than expected?
+* Are local sessions and tools being used?
+* Did the last refresh succeed?
+* Is the displayed data fresh, stale, partial, or missing?
 
-V1 should stay tight and honest:
+If the dashboard cannot answer those questions quickly, it is not doing its job.
 
-- a top-level health summary
-- a few useful trend charts
-- a compact table of blocked or stale work
-- recent CI / check outcomes
-- recent tool or session usage
-- obvious empty, loading, and error states
+## Product scope
 
-It should not try to become a full observability platform. That is how projects get bloated and useless.
+Signal House should stay small, sharp, and honest.
 
-## Why this stack
+It should provide:
+
+* a top-level health summary
+* recent throughput trends
+* cycle time and stale-work indicators
+* a compact blocked/stale work table
+* recent CI and check outcomes
+* recent OpenCode/OpenClaw session usage where available
+* clear refresh status
+* clear empty, loading, stale, partial, and error states
+
+It should not become:
+
+* a full observability platform
+* a BI dashboard
+* a forecasting tool
+* a multi-team analytics suite
+* a place where questionable metrics are dressed up as truth
+
+If a metric is not available, Signal House should say that plainly. The right fix is to improve instrumentation, not fake confidence.
+
+## Stack
 
 Signal House uses:
 
-- **Nuxt 3**
-- **Vue 3**
-- **TypeScript**
-- **Nuxt UI**
-- **Pinia**
-- **ECharts**
-- **SQLite**
+* Nuxt 3
+* Vue 3
+* TypeScript
+* Nuxt UI
+* Pinia
+* ECharts
+* SQLite
 
-I picked this stack because it gives me the shortest path to something shippable without painting myself into a corner.
+The stack is deliberately boring where it matters.
 
-Nuxt gives me a clean full-stack structure and keeps the server and UI in one place. Vue is a good fit for dashboard UI. TypeScript keeps the moving parts honest. SQLite is boring in the best possible way for local cached snapshots. ECharts is good enough for the charts without forcing me to build a charting system from scratch.
-
-Nuxt UI is the real trade here: it lets the app feel like a proper operator tool quickly, instead of spending a week hand-assembling cards and tables just to rediscover why frameworks exist.
-
-## Likely data sources
-
-The dashboard should use data that actually exists:
-
-- GitHub issues
-- GitHub pull requests
-- GitHub Actions / check runs
-- local git history from repos on disk
-- local OpenCode / OpenClaw session metadata when available
-- local logs if they are easy to ingest
-
-If a metric is not available yet, the right move is to add instrumentation or file an issue, not fake the number.
+Nuxt keeps the server and UI in one place. Vue fits the dashboard UI well. TypeScript keeps the data model honest. SQLite is a simple local store for cached snapshots and refresh state. ECharts is enough for useful trend charts without turning charts into their own project.
 
 ## Architecture
 
-The shape is intentionally simple:
+Signal House runs as a local Node/Nuxt server.
 
-- Nuxt server routes collect and cache metrics
-- SQLite stores snapshots and latest aggregates locally
-- the frontend reads from local API routes only
-- refresh logic is explicit and predictable
-- data collection can be triggered manually and later scheduled
+```text
+Nuxt server
+├── serves the dashboard UI
+├── exposes local API routes
+├── collects metrics from configured sources
+├── caches latest state in SQLite
+├── persists daily metric rollups
+├── tracks refresh and source health
+└── optionally polls in the background
+```
 
-That keeps the system inspectable and easy to run on the machine that hosts Clawd.
+The frontend only reads from local API routes. It does not call GitHub or local tools directly.
 
-## Local Development
+The intended shape is:
+
+* server routes collect and cache metrics
+* SQLite stores latest snapshots, daily rollups, refresh history, and source health
+* the UI reads cached/local state
+* manual refresh remains available
+* background polling can keep the dashboard warm
+* failed refreshes do not wipe the last good data
+
+This keeps the system inspectable and easy to run on the same machine that hosts Clawd.
+
+## Data sources
+
+Signal House uses data that already exists:
+
+* GitHub issues
+* GitHub pull requests
+* GitHub Actions and check runs
+* local git history from configured repos
+* local OpenCode/OpenClaw session metadata where available
+* local logs where ingestion is simple enough to justify
+
+Data sources should fail gracefully. A missing optional source should produce a clear warning, not take the whole dashboard down.
+
+## Local development
 
 ### Prerequisites
 
-- **Node.js 18+** and **npm** (or **pnpm** if preferred)
-- **OpenCode CLI** (for session usage metrics — optional, falls back gracefully)
+* Node.js 18+
+* npm
+* OpenCode CLI, optional, for session usage metrics
 
-### Install and run
+### Install
 
 ```bash
-# Install dependencies
 npm install
+```
 
-# Start the dev server (bound to 0.0.0.0 for LAN access)
+### Run the dev server
+
+```bash
 npm run dev
 ```
 
-The `--host 0.0.0.0` flag is set in `package.json` so the dev server is reachable from other devices on the same network.
+The dev server is configured to bind to `0.0.0.0`, so it can be reached from other devices on the same LAN.
 
-### Expected URLs
+Expected URLs:
 
-| Location | URL |
-|----------|-----|
-| Local machine | `http://localhost:3000` |
-| LAN (other device) | `http://<host-lan-ip>:3000` |
+| Location      | URL                         |
+| ------------- | --------------------------- |
+| Local machine | `http://localhost:3000`     |
+| LAN device    | `http://<host-lan-ip>:3000` |
 
-Find the host LAN IP with:
+Find the host LAN IP:
 
 ```bash
 # Linux
@@ -110,198 +146,293 @@ hostname -I | awk '{print $1}'
 ipconfig getifaddr en0
 ```
 
-### Configuring data sources
+## Configuration
 
-Set these environment variables before starting the dev server:
-
-```bash
-# Preferred env names for Signal House
-export SECRET_HOUSE_GITHUB_TOKEN=ghp_your_token_here
-export SECRET_HOUSE_GITHUB_OWNER=your-org-or-user
-export SECRET_HOUSE_GITHUB_REPO=your-repo
-export SECRET_HOUSE_GIT_REPOS=/path/to/repo1,/path/to/repo2
-export SECRET_HOUSE_OPENCODE_BIN=
-export SECRET_HOUSE_OPENCODE_COMMAND=opencode
-export SECRET_HOUSE_SESSIONS_PERIOD_DAYS=30
-export SECRET_HOUSE_POLLER_ENABLED=true
-export SECRET_HOUSE_POLL_INTERVAL_SECONDS=300
-export SECRET_HOUSE_POLL_STARTUP_DELAY_SECONDS=5
-export SECRET_HOUSE_RUN_ON_STARTUP=true
-
-# Legacy compatibility names still work for now:
-# GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO, GIT_REPOS, OPENCODE_BIN,
-# OPENCODE_COMMAND, SESSIONS_PERIOD_DAYS, METRICS_POLLER_ENABLED,
-# METRICS_POLL_INTERVAL_SECONDS, METRICS_POLL_STARTUP_DELAY_SECONDS,
-# METRICS_RUN_ON_STARTUP
-
-# Optional: Session / OpenCode CLI metrics
-# Resolved in order: config.opencodeBin > SECRET_HOUSE_OPENCODE_BIN > $PATH 'opencode' > $HOME/.opencode/bin/opencode > fallback path > config.opencodeCommand > SECRET_HOUSE_OPENCODE_COMMAND
-# OPENCODE_COMMAND and config.opencodeCommand are compatibility-only fallbacks.
-# The collector runs `opencode stats --days <period>` and parses the overview + tool usage tables.
-export SECRET_HOUSE_OPENCODE_BIN=
-export SECRET_HOUSE_OPENCODE_COMMAND=opencode
-export SECRET_HOUSE_SESSIONS_PERIOD_DAYS=30
-```
-
-Create a `.env` file in the project root to persist these:
+Create a `.env` file in the project root.
 
 ```bash
 SECRET_HOUSE_GITHUB_TOKEN=ghp_your_token_here
 SECRET_HOUSE_GITHUB_OWNER=your-org-or-user
 SECRET_HOUSE_GITHUB_REPO=your-repo
+
 SECRET_HOUSE_GIT_REPOS=/path/to/repo1,/path/to/repo2
+
 SECRET_HOUSE_OPENCODE_BIN=
-SECRET_HOUSE_OPENCODE_COMMAND=opencode # compatibility fallback only
+SECRET_HOUSE_OPENCODE_COMMAND=opencode
 SECRET_HOUSE_SESSIONS_PERIOD_DAYS=30
+
 SECRET_HOUSE_POLLER_ENABLED=true
 SECRET_HOUSE_POLL_INTERVAL_SECONDS=300
 SECRET_HOUSE_POLL_STARTUP_DELAY_SECONDS=5
 SECRET_HOUSE_RUN_ON_STARTUP=true
 ```
 
-### Manual Data Refresh
+### GitHub configuration
 
-Once the dashboard is running, click the **Refresh** button in the top-right corner to trigger data collection from all configured sources. The dashboard continues showing cached data while the refresh runs in the background. If a refresh is already in progress, subsequent requests are rejected until it completes.
+| Variable                    | Purpose                                                |
+| --------------------------- | ------------------------------------------------------ |
+| `SECRET_HOUSE_GITHUB_TOKEN` | GitHub token used for issues, PRs, Actions, and checks |
+| `SECRET_HOUSE_GITHUB_OWNER` | GitHub owner or organisation                           |
+| `SECRET_HOUSE_GITHUB_REPO`  | GitHub repository name                                 |
 
-GitHub rate limits apply. Cached data is kept and displayed even when GitHub is slow or unreachable, with a "stale data" indicator when the cache is older than 15 minutes.
+### Local git configuration
 
-### Firewall Note
+| Variable                 | Purpose                                             |
+| ------------------------ | --------------------------------------------------- |
+| `SECRET_HOUSE_GIT_REPOS` | Comma-separated list of local repo paths to inspect |
 
-If the OS firewall blocks port `3000`, allow LAN access for that port:
+### OpenCode session configuration
+
+| Variable                            | Purpose                                       |
+| ----------------------------------- | --------------------------------------------- |
+| `SECRET_HOUSE_OPENCODE_BIN`         | Optional explicit path to the OpenCode binary |
+| `SECRET_HOUSE_OPENCODE_COMMAND`     | Command fallback, usually `opencode`          |
+| `SECRET_HOUSE_SESSIONS_PERIOD_DAYS` | Number of days to include in session metrics  |
+
+The OpenCode collector runs:
 
 ```bash
-# Linux (iptables)
-sudo iptables -A INPUT -p tcp --dport 3000 -j ACCEPT
-
-# Linux (firewalld)
-sudo firewall-cmd --add-port=3000/tcp
+opencode stats --days <period>
 ```
 
-### Local Verification
+It parses the overview and tool usage output when available. If OpenCode is unavailable, Signal House should continue running and report the missing source clearly.
 
-Run the same commands the CI workflow uses:
+### Poller configuration
+
+| Variable                                  | Purpose                                     |
+| ----------------------------------------- | ------------------------------------------- |
+| `SECRET_HOUSE_POLLER_ENABLED`             | Enables the background refresh loop         |
+| `SECRET_HOUSE_POLL_INTERVAL_SECONDS`      | Poll interval in seconds                    |
+| `SECRET_HOUSE_POLL_STARTUP_DELAY_SECONDS` | Delay before the first scheduled run        |
+| `SECRET_HOUSE_RUN_ON_STARTUP`             | Runs a refresh shortly after server startup |
+
+The poller is intended for a single local server process. Do not run multiple poller-enabled instances against the same local state unless locking is explicitly designed for it.
+
+### Legacy env names
+
+Legacy `METRICS_*`, `GITHUB_*`, `GIT_REPOS`, and `OPENCODE_*` names may still work for compatibility, but new configuration should use the `SECRET_HOUSE_*` names currently supported by the app.
+
+## Manual refresh
+
+The dashboard includes a manual refresh action.
+
+A manual refresh:
+
+* triggers collection from configured sources
+* runs in the background
+* keeps showing cached data while collection is running
+* rejects duplicate refreshes while another refresh is active
+* preserves the last good data if collection fails
+
+GitHub rate limits still apply. If GitHub is slow, unreachable, or rate-limited, Signal House should show the cached snapshot with a clear stale or partial-data warning.
+
+## Background polling
+
+When enabled, the Nuxt server starts a guarded background poller.
+
+The poller:
+
+* waits for the configured startup delay
+* optionally runs once on startup
+* refreshes at the configured interval
+* uses the same refresh runner as manual refresh
+* avoids overlapping runs
+* records run status and source health
+* does not crash the server when a collector fails
+
+Manual refresh and scheduled refresh must not fork into separate logic. They should share the same runner and concurrency guard.
+
+## API shape
+
+The main dashboard endpoint is:
+
+```text
+GET /api/state
+```
+
+It returns the latest cached dashboard state, refresh metadata, and the rolling 28-day dashboard window.
+
+The response includes:
+
+* latest snapshot data
+* refresh status
+* stale-data status
+* source health
+* dashboard cards
+* 28-day chart window
+* data coverage and warnings
+
+The dashboard should be able to tell the difference between:
+
+* fresh data
+* stale data
+* partial data
+* no data yet
+* refresh in progress
+* last refresh failed but cached data exists
+
+## Daily metrics
+
+Signal House persists daily rollups in SQLite.
+
+Each daily metric row is keyed by UTC day:
+
+```text
+YYYY-MM-DD
+```
+
+Daily rows are used for the rolling dashboard window and trend charts.
+
+Behaviour:
+
+* same-day refreshes overwrite the current day
+* earlier days are preserved
+* missing days remain explicit gaps
+* the API returns chart days in ascending order
+* gaps are not silently zero-filled
+
+This matters because zero-filling missing days makes the dashboard lie.
+
+## 28-day dashboard window
+
+`GET /api/state` includes a rolling 28-day dashboard window.
+
+The window contains:
+
+* `startDay`
+* `endDay`
+* normalized `days`
+* summary `cards`
+* `coverage`
+* warnings
+
+Missing days are represented explicitly with:
+
+```ts
+{
+  isGap: true,
+  metrics: null
+}
+```
+
+This lets charts and cards stay honest about incomplete data.
+
+## Validation
+
+Run the local verification commands before merging changes:
 
 ```bash
-# Install dependencies from the lockfile
 npm ci
-
-# Generate Nuxt build and tsconfig artifacts
 npm exec nuxi prepare
-
-# Run the test suite
 npm test
-
-# TypeScript type check
 npm run typecheck
-
-# Production build
 npm run build
 ```
 
-## Daily metrics persistence
+Use the repo’s actual scripts as the source of truth. If a script is missing or fails for environmental reasons, document that clearly.
 
-When a refresh completes, the orchestrator computes per-day metric rollups from the raw source data and persists them into the `daily_metrics` table.
+## Running as a local service
 
-### Schema
+Signal House is intended to run as a persistent local Node service on the machine that hosts Clawd.
 
-Each row is keyed by a single calendar day (`YYYY-MM-DD` UTC) and stores aggregate-level numeric rollups:
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `day` | TEXT PK | Calendar day in `YYYY-MM-DD` UTC |
-| `captured_at` | TEXT | ISO 8601 timestamp of the refresh that produced this row |
-| `source` | TEXT | Data source identifier (e.g. `orchestrated`) |
-| `version` | INTEGER | Schema version for future migrations |
-| `reflects_complete_data` | INTEGER | `1` if no collector errors occurred |
-| `issues_opened` / `issues_closed` | INTEGER | Per-day issue throughput |
-| `prs_created` / `prs_merged` | INTEGER | Per-day PR throughput |
-| `total_commits` | INTEGER | Sum of recent commits across all local git repos |
-| `avg_cycle_time_days` / `median_cycle_time_days` / `p95_cycle_time_days` | REAL | Cycle time statistics |
-| `cycle_time_sample_size` | INTEGER | Sample size for cycle time stats |
-| `ci_total_runs` / `ci_pass_count` / `ci_fail_count` | INTEGER | Per-day CI outcome counts |
-| `ci_pass_rate` | REAL | `pass / total` |
-| `ci_avg_duration_ms` | REAL | Average CI run duration |
-| `total_sessions` / `session_error_count` | INTEGER | Per-day session counts |
-| `stale_issues` / `stale_prs` | INTEGER | Stale work snapshot |
-| `warnings` | TEXT | JSON array of warning strings |
-
-### Behaviour
-
-- **Same-day overwrite**: Inserting a row for an existing day replaces the previous record (upsert-by-day).
-- **Historical preservation**: Days from earlier calendar dates are never modified by a new refresh.
-- **Missing days**: Days with no data are omitted from results — no zero-filled rows are returned.
-- **Range query**: `getDailyMetricsRange(fromDay, toDay)` returns rows in descending day order.
-
-### Local verification
+A typical production run is:
 
 ```bash
-# Run the full test suite (includes daily metrics tests)
-npm test
-
-# TypeScript type check
-npm run typecheck
-
-# Production build
+npm ci
 npm run build
+node .output/server/index.mjs
 ```
 
+Example systemd unit:
 
-### `/api/state` 28-day contract
+```ini
+[Unit]
+Description=Signal House
+After=network-online.target
+Wants=network-online.target
 
-`GET /api/state` keeps the existing snapshot and refresh metadata, and now adds `dashboardWindow` for the rolling 28-day dashboard view.
+[Service]
+Type=simple
+WorkingDirectory=/home/openclaw/projects/signal-house
+EnvironmentFile=/home/openclaw/projects/signal-house/.env
+ExecStart=/usr/bin/node .output/server/index.mjs
+Restart=on-failure
+RestartSec=5
+User=openclaw
+Group=openclaw
 
-- `dashboardWindow.startDay` and `dashboardWindow.endDay` are UTC `YYYY-MM-DD` keys.
-- `dashboardWindow.days` is normalized for chart consumption in ascending day order.
-- Missing days stay explicit with `isGap: true` and `metrics: null`.
-- `dashboardWindow.cards` contains the 28-day card-ready summaries for throughput, cycle time, CI, stale work, and session usage.
-- `dashboardWindow.coverage` exposes gap and warning status so the UI can stay honest about partial data.
-- `dashboardWindow.warnings` merges source warnings with a concise missing-day warning when gaps exist.
+[Install]
+WantedBy=multi-user.target
+```
 
-### 28-day regression coverage expectations
+Reload and start:
 
-The 28-day dashboard work should keep these regressions covered as the data model, API, and UI evolve:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now signal-house
+sudo systemctl status signal-house
+```
 
-- daily window responses must keep their 28-day shape stable
-- missing days must stay explicit instead of being silently filled in
-- same-day refresh reruns must upsert today's data without rewriting earlier days
-- refresh-in-progress and refresh failure states must still clear cleanly
-- charts and summary cards must keep reading the 28-day period honestly on wider and narrower screens
+View logs:
 
-## Data sync and ingestion
+```bash
+journalctl -u signal-house -f
+```
 
-For V1, keep ingestion local and simple:
+## Firewall note
 
-- refresh from GitHub on demand
-- optionally add a timer later for periodic refresh
-- cache responses locally so the UI still works when GitHub is slow or rate-limited
-- keep the latest fetched snapshot available even if a refresh fails
+If the dashboard should be available on the LAN, allow port `3000`.
 
-No Docker Compose is needed for V1 unless a local SQLite helper or sidecar becomes necessary later. That would add complexity without enough payoff right now.
+```bash
+# firewalld
+sudo firewall-cmd --add-port=3000/tcp --permanent
+sudo firewall-cmd --reload
 
-## Known limitations
+# iptables
+sudo iptables -A INPUT -p tcp --dport 3000 -j ACCEPT
+```
 
-V1 will not be a complete engineering analytics platform.
+## Design principles
 
-It will not yet do:
+Signal House should be:
 
-- alerting
-- multi-team access control
-- forecasting
-- deployment tracking
-- deep drill-down pages
-- perfect cross-repo instrumentation
+* fast to read
+* honest about uncertainty
+* compact without hiding important failures
+* boring operationally
+* useful before it is pretty
+* specific to Clawd/OpenClaw, not generic
 
-Some useful metrics will stay approximate until the underlying tooling emits better events.
+Avoid:
 
-## Suggested first implementation issue
+* vanity metrics
+* fake precision
+* decorative charts
+* dashboards that require interpretation archaeology
+* abstractions added before the local workflow proves they are needed
 
-Start with the project scaffold and metric model:
+## Current boundaries
 
-- Nuxt app skeleton
-- basic layout and shell
-- shared metric types
-- local cached data shape
-- placeholder data sources
-- README-backed run instructions
+Signal House does not try to solve everything.
 
-That gives us a stable base before wiring in GitHub ingestion.
+It does not currently provide:
+
+* alerting
+* multi-user access control
+* deployment tracking
+* forecasting
+* deep drill-down pages
+* complete cross-repo analytics
+* perfect session instrumentation
+* long-term data warehouse storage
+
+Those can come later if they become useful. For now, Signal House should stay small, local, and operationally sharp.
+
+## Development rule
+
+When adding a metric, ask:
+
+> What decision does this help the operator make?
+
+If the answer is unclear, do not add the metric yet.
+
