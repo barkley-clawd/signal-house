@@ -10,6 +10,33 @@ import { randomUUID } from 'node:crypto'
 
 type ProgressCallback = (progress: CollectorProgress) => void
 
+export async function collectWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) {
+    return []
+  }
+
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const currentIndex = nextIndex
+      nextIndex += 1
+      if (currentIndex >= items.length) {
+        return
+      }
+      results[currentIndex] = await fn(items[currentIndex]!, currentIndex)
+    }
+  })
+
+  await Promise.all(workers)
+  return results
+}
+
 export function createCollector(config: GitHubCollectorConfig, onProgress?: ProgressCallback) {
   const baseUrl = config.baseUrl ?? 'https://api.github.com'
   const apiUrl = `${baseUrl.replace(/\/+$/, '')}/repos/${config.owner}/${config.repo}`

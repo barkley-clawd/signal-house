@@ -3,7 +3,7 @@ import type { LocalGitCollectorConfig } from '../git/types'
 import type { SessionCollectorConfig } from '../sessions/types'
 
 export interface OrchestratorConfig {
-  github?: GitHubCollectorConfig
+  github?: GitHubCollectorConfig[]
   localGit?: LocalGitCollectorConfig
   sessions?: SessionCollectorConfig
   discoveryWarnings?: string[]

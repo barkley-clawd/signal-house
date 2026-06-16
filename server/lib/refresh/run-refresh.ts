@@ -24,6 +24,7 @@ export interface RefreshRunResult {
 export function buildRefreshConfig(env: NodeJS.ProcessEnv = process.env): OrchestratorConfig {
   const config: OrchestratorConfig = {}
   const discoveryWarnings: string[] = []
+  const githubConfigs: NonNullable<OrchestratorConfig['github']> = []
 
   function normalizeDiscoveredPath(entry: string | { path: string }): string {
     return typeof entry === 'string' ? entry : entry.path
@@ -37,11 +38,11 @@ export function buildRefreshConfig(env: NodeJS.ProcessEnv = process.env): Orches
   const githubOwner = getEnv(env, 'SECRET_HOUSE_GITHUB_OWNER', 'GITHUB_OWNER')
   const githubRepo = getEnv(env, 'SECRET_HOUSE_GITHUB_REPO', 'GITHUB_REPO')
   if (githubToken && githubOwner && githubRepo) {
-    config.github = {
+    githubConfigs.push({
       owner: githubOwner,
       repo: githubRepo,
       token: githubToken,
-    }
+    })
   }
 
   const gitRepos = getEnv(env, 'SECRET_HOUSE_GIT_REPOS', 'GIT_REPOS')
@@ -101,6 +102,16 @@ export function buildRefreshConfig(env: NodeJS.ProcessEnv = process.env): Orches
         if (!repoConfigs.some(existing => existing.repoKey === repoConfig.repoKey || existing.path === repoConfig.path)) {
           repoConfigs.push(repoConfig)
         }
+        if (githubToken && repo.githubOwner && repo.githubRepo) {
+          const exists = githubConfigs.some(existing => existing.owner === repo.githubOwner && existing.repo === repo.githubRepo)
+          if (!exists) {
+            githubConfigs.push({
+              owner: repo.githubOwner,
+              repo: repo.githubRepo,
+              token: githubToken,
+            })
+          }
+        }
       }
     }
   }
@@ -112,6 +123,9 @@ export function buildRefreshConfig(env: NodeJS.ProcessEnv = process.env): Orches
   }
   if (discoveryWarnings.length > 0) {
     config.discoveryWarnings = discoveryWarnings
+  }
+  if (githubConfigs.length > 0) {
+    config.github = githubConfigs
   }
 
   const sessionsConfig: SessionCollectorConfig = {}

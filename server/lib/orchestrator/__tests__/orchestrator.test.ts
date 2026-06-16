@@ -11,6 +11,8 @@ vi.mock('../../../db/client', () => ({
 
 vi.mock('../../github/collector', () => ({
   createCollector: vi.fn(),
+  collectWithConcurrency: async <T, R>(items: T[], _limit: number, fn: (item: T, index: number) => Promise<R>) =>
+    await Promise.all(items.map((item, index) => fn(item, index))),
 }))
 
 vi.mock('../../git/collector', () => ({
@@ -146,7 +148,7 @@ describe('createOrchestrator', () => {
     })
 
     const orchestrator = createOrchestrator({
-      github: { owner: 'test', repo: 'repo', token: 'tok' },
+      github: [{ owner: 'test', repo: 'repo', token: 'tok' }],
       localGit: { repos: [{ path: '/home/repo1' }] },
       sessions: {},
     })
@@ -165,6 +167,155 @@ describe('createOrchestrator', () => {
     expect(snapshotArg.localGit).toHaveLength(1)
     expect(snapshotArg.localGit[0]!.recentCommits).toBe(5)
     expect(snapshotArg.repositories).toHaveLength(2)
+  })
+
+  it('collects multiple GitHub targets and merges their raw metrics', async () => {
+    const ghCollectorA = { collect: vi.fn(), getApiClient: vi.fn() }
+    const ghCollectorB = { collect: vi.fn(), getApiClient: vi.fn() }
+
+    vi.mocked(mockGhCreate)
+      .mockReturnValueOnce(ghCollectorA as never)
+      .mockReturnValueOnce(ghCollectorB as never)
+
+    ghCollectorA.collect.mockResolvedValue({
+      snapshotId: 'gh-a',
+      capturedAt: new Date().toISOString(),
+      issuesCount: 1,
+      prsCount: 0,
+      checkRunsCount: 0,
+      errors: [],
+      partialData: false,
+      durationMs: 50,
+      snapshot: {
+        id: 'gh-a',
+        capturedAt: new Date().toISOString(),
+        issues: [{
+          id: 'a', title: 'A', state: 'open' as const,
+          createdAt: '', updatedAt: '', closedAt: null, repo: 'test/one', repoKey: 'github:test/one',
+          labels: [], assignee: null, milestone: null, url: '',
+        }],
+        pullRequests: [],
+        checkRuns: [],
+        repositories: [],
+        sessions: [],
+        localGit: [],
+        errors: [],
+        aggregates: {
+          throughput: { periodStart: '2025-01-01T00:00:00Z', periodEnd: '2025-06-01T00:00:00Z', issuesClosed: 0, issuesOpened: 1, prsMerged: 0, prsCreated: 0, totalCommits: 0 },
+          cycleTime: null,
+          ci: null,
+          staleWork: { asOf: 'now', staleIssues: 0, stalePRs: 0, staleThresholdDays: 14, oldestItemDays: null },
+          sessionUsage: null,
+          computedAt: 'now',
+        },
+        metadata: { source: 'github' as const, refreshDurationMs: 50, partialData: false, errors: [] },
+      },
+    })
+
+    ghCollectorB.collect.mockResolvedValue({
+      snapshotId: 'gh-b',
+      capturedAt: new Date().toISOString(),
+      issuesCount: 1,
+      prsCount: 0,
+      checkRunsCount: 0,
+      errors: [],
+      partialData: false,
+      durationMs: 50,
+      snapshot: {
+        id: 'gh-b',
+        capturedAt: new Date().toISOString(),
+        issues: [{
+          id: 'b', title: 'B', state: 'closed' as const,
+          createdAt: '', updatedAt: '', closedAt: null, repo: 'test/two', repoKey: 'github:test/two',
+          labels: [], assignee: null, milestone: null, url: '',
+        }],
+        pullRequests: [],
+        checkRuns: [],
+        repositories: [],
+        sessions: [],
+        localGit: [],
+        errors: [],
+        aggregates: {
+          throughput: { periodStart: '2025-01-01T00:00:00Z', periodEnd: '2025-06-01T00:00:00Z', issuesClosed: 0, issuesOpened: 1, prsMerged: 0, prsCreated: 0, totalCommits: 0 },
+          cycleTime: null,
+          ci: null,
+          staleWork: { asOf: 'now', staleIssues: 0, stalePRs: 0, staleThresholdDays: 14, oldestItemDays: null },
+          sessionUsage: null,
+          computedAt: 'now',
+        },
+        metadata: { source: 'github' as const, refreshDurationMs: 50, partialData: false, errors: [] },
+      },
+    })
+
+    const orchestrator = createOrchestrator({
+      github: [
+        { owner: 'test', repo: 'one', token: 'tok' },
+        { owner: 'test', repo: 'two', token: 'tok' },
+      ],
+    })
+
+    await orchestrator.collect()
+
+    const snapshotArg = vi.mocked(db.insertSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
+    expect(snapshotArg.issues).toHaveLength(2)
+  })
+
+  it('keeps the other GitHub target when one target fails', async () => {
+    const ghCollectorA = { collect: vi.fn(), getApiClient: vi.fn() }
+    const ghCollectorB = { collect: vi.fn(), getApiClient: vi.fn() }
+
+    vi.mocked(mockGhCreate)
+      .mockReturnValueOnce(ghCollectorA as never)
+      .mockReturnValueOnce(ghCollectorB as never)
+
+    ghCollectorA.collect.mockResolvedValue({
+      snapshotId: 'gh-a',
+      capturedAt: new Date().toISOString(),
+      issuesCount: 1,
+      prsCount: 0,
+      checkRunsCount: 0,
+      errors: [],
+      partialData: false,
+      durationMs: 50,
+      snapshot: {
+        id: 'gh-a',
+        capturedAt: new Date().toISOString(),
+        issues: [{
+          id: 'a', title: 'A', state: 'open' as const,
+          createdAt: '', updatedAt: '', closedAt: null, repo: 'test/one', repoKey: 'github:test/one',
+          labels: [], assignee: null, milestone: null, url: '',
+        }],
+        pullRequests: [],
+        checkRuns: [],
+        repositories: [],
+        sessions: [],
+        localGit: [],
+        errors: [],
+        aggregates: {
+          throughput: { periodStart: '2025-01-01T00:00:00Z', periodEnd: '2025-06-01T00:00:00Z', issuesClosed: 0, issuesOpened: 1, prsMerged: 0, prsCreated: 0, totalCommits: 0 },
+          cycleTime: null,
+          ci: null,
+          staleWork: { asOf: 'now', staleIssues: 0, stalePRs: 0, staleThresholdDays: 14, oldestItemDays: null },
+          sessionUsage: null,
+          computedAt: 'now',
+        },
+        metadata: { source: 'github' as const, refreshDurationMs: 50, partialData: false, errors: [] },
+      },
+    })
+
+    ghCollectorB.collect.mockRejectedValue(new Error('target failed'))
+
+    const orchestrator = createOrchestrator({
+      github: [
+        { owner: 'test', repo: 'one', token: 'tok' },
+        { owner: 'test', repo: 'two', token: 'tok' },
+      ],
+    })
+
+    const result = await orchestrator.collect()
+
+    expect(result.partialData).toBe(true)
+    expect(result.errors.some(err => err.includes('target failed'))).toBe(true)
   })
 
   it('merges local and GitHub identity for the same repository key', async () => {
@@ -235,7 +386,7 @@ describe('createOrchestrator', () => {
     })
 
     const orchestrator = createOrchestrator({
-      github: { owner: 'test', repo: 'repo', token: 'tok' },
+      github: [{ owner: 'test', repo: 'repo', token: 'tok' }],
       localGit: { repos: [{ path: '/home/repo' }] },
     })
 
@@ -429,7 +580,7 @@ describe('createOrchestrator', () => {
     sessionCollector.collect.mockRejectedValue(new Error('CLI crashed'))
 
     const orchestrator = createOrchestrator({
-      github: { owner: 'test', repo: 'repo', token: 'tok' },
+      github: [{ owner: 'test', repo: 'repo', token: 'tok' }],
       localGit: { repos: [{ path: '/bad/path' }] },
       sessions: {},
     })

@@ -1,6 +1,7 @@
-import { createCollector as createGitHubCollector } from '../github/collector'
+import { createCollector as createGitHubCollector, collectWithConcurrency } from '../github/collector'
 import { createLocalGitCollector } from '../git/collector'
 import { createSessionCollector } from '../sessions/collector'
+import { deriveAll } from '../github/aggregates'
 import { initDb, insertSnapshot, insertAggregate, getLatestSnapshot, upsertDailyMetrics } from '../../db/client'
 import { computeDailyMetrics } from '../daily-metrics'
 import { randomUUID } from 'node:crypto'
@@ -101,22 +102,25 @@ export function createOrchestrator(config: OrchestratorConfig) {
       let sessionUsageFromCollector: import('../../../types/aggregates').SessionUsageAggregate | null = null
 
       // 1. GitHub collector
-      if (config.github) {
+      if (config.github && config.github.length > 0) {
         sources.push('github')
         try {
-          const ghCollector = createGitHubCollector({
-            ...config.github,
-            skipPersist: true,
+          const ghResults = await collectWithConcurrency(config.github, 3, async ghConfig => {
+            const ghCollector = createGitHubCollector({
+              ...ghConfig,
+              skipPersist: true,
+            })
+            return await ghCollector.collect()
           })
-          const ghResult = await ghCollector.collect()
-          if (ghResult.snapshot) {
-            issues = ghResult.snapshot.issues
-            pullRequests = ghResult.snapshot.pullRequests
-            checkRuns = ghResult.snapshot.checkRuns
-            repositories = ghResult.snapshot.repositories.map(normalizeRepositoryMetric)
-            aggregates = ghResult.snapshot.aggregates
+          for (const ghResult of ghResults) {
+            if (ghResult.snapshot) {
+              issues.push(...ghResult.snapshot.issues)
+              pullRequests.push(...ghResult.snapshot.pullRequests)
+              checkRuns.push(...ghResult.snapshot.checkRuns)
+              repositories.push(...ghResult.snapshot.repositories.map(normalizeRepositoryMetric))
+            }
+            allErrors.push(...ghResult.errors)
           }
-          allErrors.push(...ghResult.errors)
         } catch (err) {
           allErrors.push(`GitHub collector failed: ${err instanceof Error ? err.message : String(err)}`)
         }
@@ -149,12 +153,10 @@ export function createOrchestrator(config: OrchestratorConfig) {
           const sessionResult = await sessionCollector.collect()
           sessions = sessionResult.sessions
           sessionUsageFromCollector = sessionResult.sessionUsage
-          if (sessionResult.sessionUsage && aggregates) {
-            aggregates = {
-              ...aggregates,
-              sessionUsage: sessionResult.sessionUsage,
-              computedAt: capturedAt,
-            }
+          const currentAggregates = aggregates as DashboardAggregates | null
+          if (sessionResult.sessionUsage && currentAggregates !== null) {
+            currentAggregates.sessionUsage = sessionResult.sessionUsage
+            currentAggregates.computedAt = capturedAt
           }
           if (sessionResult.gap) {
             allErrors.push(sessionResult.gap)
@@ -165,7 +167,12 @@ export function createOrchestrator(config: OrchestratorConfig) {
         }
       }
 
-      // Build aggregates if we didn't get them from GitHub
+      if (config.github && config.github.length > 0) {
+        const deriveConfig = { staleThresholdDays: 14, lookbackDays: 30 }
+        aggregates = deriveAll(issues, pullRequests, checkRuns, deriveConfig)
+        aggregates.throughput.totalCommits = localGit.reduce((sum, r) => sum + r.recentCommits, 0)
+      }
+
       if (!aggregates) {
         const now = new Date()
         aggregates = {

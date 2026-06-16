@@ -49,11 +49,11 @@ describe('buildRefreshConfig', () => {
     vi.stubEnv('OPENCODE_COMMAND', 'opencode stats')
 
     expect(buildRefreshConfig()).toMatchObject({
-      github: {
+      github: [{
         owner: 'owner',
         repo: 'repo',
         token: 'token',
-      },
+      }],
       localGit: {
         repos: [{ path: '/tmp/a' }, { path: '/tmp/b' }],
       },
@@ -108,6 +108,46 @@ describe('buildRefreshConfig', () => {
         expect.objectContaining({ path: '/discovered/repo', repoKey: 'local:/discovered/repo' }),
       ],
     })
+  })
+
+  it('adds discovered GitHub repos to the GitHub config list when a token is available', () => {
+    mocks.mockDiscoverGitRepos.mockReturnValue({
+      repos: [
+        { repoKey: 'github:test/one', name: 'one', path: '/one', remoteUrl: 'https://github.com/test/one', githubOwner: 'test', githubRepo: 'one', source: 'github' },
+        { repoKey: 'github:test/two', name: 'two', path: '/two', remoteUrl: 'https://github.com/test/two', githubOwner: 'test', githubRepo: 'two', source: 'github' },
+      ],
+      warnings: [],
+    })
+
+    vi.stubEnv('GITHUB_TOKEN', 'token')
+    vi.stubEnv('SECRET_HOUSE_PROJECT_ROOTS', '/workspace')
+
+    const config = buildRefreshConfig()
+
+    expect(config.github).toEqual([
+      { owner: 'test', repo: 'one', token: 'token' },
+      { owner: 'test', repo: 'two', token: 'token' },
+    ])
+  })
+
+  it('deduplicates discovered GitHub repos against explicit owner and repo', () => {
+    mocks.mockDiscoverGitRepos.mockReturnValue({
+      repos: [
+        { repoKey: 'github:test/repo', name: 'repo', path: '/repo', remoteUrl: 'https://github.com/test/repo', githubOwner: 'test', githubRepo: 'repo', source: 'github' },
+      ],
+      warnings: [],
+    })
+
+    vi.stubEnv('GITHUB_TOKEN', 'token')
+    vi.stubEnv('GITHUB_OWNER', 'test')
+    vi.stubEnv('GITHUB_REPO', 'repo')
+    vi.stubEnv('SECRET_HOUSE_PROJECT_ROOTS', '/workspace')
+
+    const config = buildRefreshConfig()
+
+    expect(config.github).toEqual([
+      { owner: 'test', repo: 'repo', token: 'token' },
+    ])
   })
 
   it('includes discovery warnings in the refresh config', () => {
