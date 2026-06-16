@@ -230,6 +230,48 @@ describe('computeDailyMetrics', () => {
     }
   })
 
+  it('does not spread aggregate CI totals across days with no workflow runs', () => {
+    const snapshot = makeSnapshot({
+      workflowRuns: [],
+      aggregates: {
+        throughput: {
+          periodStart: '2026-06-01T00:00:00Z',
+          periodEnd: '2026-06-05T12:00:00Z',
+          issuesClosed: 0,
+          issuesOpened: 0,
+          prsMerged: 0,
+          prsCreated: 0,
+          totalCommits: 0,
+        },
+        cycleTime: null,
+        ci: {
+          periodStart: '2026-06-01T00:00:00Z',
+          periodEnd: '2026-06-05T12:00:00Z',
+          totalRuns: 12,
+          passCount: 9,
+          failCount: 3,
+          passRate: 0.75,
+          averageDurationMs: 1234,
+        },
+        staleWork: {
+          asOf: '2026-06-05T12:00:00Z',
+          staleIssues: 2,
+          stalePRs: 1,
+          staleThresholdDays: 14,
+          oldestItemDays: null,
+        },
+        sessionUsage: null,
+        computedAt: '2026-06-05T12:00:00Z',
+      },
+    })
+
+    const rows = computeDailyMetrics(snapshot)
+    expect(rows.every((row) => row.ciTotalRuns === 0)).toBe(true)
+    expect(rows.every((row) => row.ciPassCount === 0)).toBe(true)
+    expect(rows.every((row) => row.ciFailCount === 0)).toBe(true)
+    expect(rows.some((row) => row.warnings.some((warning) => warning.includes('CI trend unavailable')))).toBe(true)
+  })
+
   it('adds warnings when metadata has errors', () => {
     const snapshot = makeSnapshot({
       metadata: {

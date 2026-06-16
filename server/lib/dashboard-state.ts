@@ -230,7 +230,8 @@ function buildCycleTimeSummary(rows: DailyMetricsRow[]): DashboardWindowCycleTim
 function buildCiSummary(rows: DailyMetricsRow[]): DashboardWindowCISummary {
   const ciRows = rows.filter(row => row.ciTotalRuns > 0 || row.ciPassCount > 0 || row.ciFailCount > 0)
   const configuredGithub = hasGithubConfig()
-  const hasSourceError = hasWarning(rows, [/workflow run/i, /workflow/i, /GitHub/i])
+  const hasSourceError = hasWarning(rows, [/workflow runs? could not be collected/i, /GitHub collector/i, /CI data unavailable/i])
+  const hasMissingDailyCiData = hasWarning(rows, [/CI trend unavailable/i])
   const totalRuns = sumBy(ciRows, row => row.ciTotalRuns)
   const passCount = sumBy(ciRows, row => row.ciPassCount)
   const failCount = sumBy(ciRows, row => row.ciFailCount)
@@ -252,9 +253,12 @@ function buildCiSummary(rows: DailyMetricsRow[]): DashboardWindowCISummary {
   } else if (hasSourceError && totalRuns === 0) {
     status = 'unavailable'
     message = 'CI data unavailable - GitHub workflow runs could not be collected'
+  } else if (hasMissingDailyCiData && totalRuns === 0) {
+    status = 'empty'
+    message = 'No per-day CI data in this window'
   } else if (totalRuns === 0) {
     status = 'empty'
-    message = 'No CI data in this window'
+    message = 'No per-day CI data in this window'
   }
 
   return {

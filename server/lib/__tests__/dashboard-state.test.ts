@@ -264,4 +264,23 @@ describe('buildDashboardWindow', () => {
     expect(window.cards.sessionUsage.status).toBe('stale')
     expect(window.cards.throughput.message).toBe('Cached data may be stale')
   })
+
+  it('explains when CI has no per-day workflow runs in the window', () => {
+    const window = buildDashboardWindow([
+      makeRow('2026-06-14', {
+        warnings: ['CI trend unavailable: no per-day workflow runs were captured in this window'],
+      }),
+    ], new Date('2026-06-14T12:00:00Z'), false, null)
+
+    expect(window.cards.ci).toMatchObject({
+      totalRuns: 0,
+      passCount: 0,
+      failCount: 0,
+      passRate: null,
+      averageDurationMs: null,
+      sourceDays: 0,
+      status: 'empty',
+      message: 'No per-day CI data in this window',
+    })
+  })
 })

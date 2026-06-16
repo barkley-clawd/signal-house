@@ -95,25 +95,16 @@ export function computeDailyMetrics(snapshot: MetricSnapshot): DailyMetricsInser
   const cycleTime = snapshot.aggregates.cycleTime as CycleTimeAggregate | null
   const ci = snapshot.aggregates.ci as CIAggregate | null
   const staleWork = snapshot.aggregates.staleWork
+  const hasCiRows = ciCompletedByDay.size > 0
 
   const inserts: DailyMetricsInsert[] = []
 
   const sortedDays = Array.from(allDays).sort().reverse()
 
   for (const day of sortedDays) {
-    let ciTotal = ciCompletedByDay.get(day) || 0
-    let ciPass = ciPassByDay.get(day) || 0
-    let ciFail = ciFailByDay.get(day) || 0
-
-    if (ci && ciTotal === 0 && ci.averageDurationMs != null) {
-      const ciDayStart = ci.periodStart.slice(0, 10)
-      const ciDayEnd = ci.periodEnd.slice(0, 10)
-      if (day >= ciDayStart && day <= ciDayEnd) {
-        ciTotal = ci.totalRuns
-        ciPass = ci.passCount
-        ciFail = ci.failCount
-      }
-    }
+    const ciTotal = ciCompletedByDay.get(day) || 0
+    const ciPass = ciPassByDay.get(day) || 0
+    const ciFail = ciFailByDay.get(day) || 0
 
     inserts.push({
       day,
@@ -142,5 +133,20 @@ export function computeDailyMetrics(snapshot: MetricSnapshot): DailyMetricsInser
     })
   }
 
+  if (ci && !hasCiRows) {
+    const ciWarning = 'CI trend unavailable: no per-day workflow runs were captured in this window'
+    const firstRow = inserts[0]
+    if (firstRow) {
+      inserts[0] = {
+        ...firstRow,
+        warnings: uniqueWarnings(firstRow.warnings, ciWarning),
+      }
+    }
+  }
+
   return inserts
+}
+
+function uniqueWarnings(existing: string[], warning: string): string[] {
+  return existing.includes(warning) ? existing : [...existing, warning]
 }
