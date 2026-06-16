@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   mockSetRefreshRunState: vi.fn(),
   mockSetRefreshRunStatus: vi.fn(),
   mockCollect: vi.fn(),
+  mockDiscoverGitRepos: vi.fn(),
 }))
 
 vi.mock('../../../db/client', () => ({
@@ -23,9 +24,17 @@ vi.mock('../../orchestrator', () => ({
   })),
 }))
 
+vi.mock('../../git/discovery', () => ({
+  discoverGitRepos: mocks.mockDiscoverGitRepos,
+}))
+
 import { buildRefreshConfig, runRefresh } from '../run-refresh'
 
 describe('buildRefreshConfig', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   afterEach(() => {
     vi.unstubAllEnvs()
   })
@@ -54,6 +63,158 @@ describe('buildRefreshConfig', () => {
         opencodeCommand: 'opencode stats',
       },
     })
+  })
+
+  it('discovers repos from SECRET_HOUSE_PROJECT_ROOTS', () => {
+    mocks.mockDiscoverGitRepos.mockReturnValue(['/discovered/a', '/discovered/b'])
+
+    vi.stubEnv('SECRET_HOUSE_PROJECT_ROOTS', '/workspace')
+
+    const config = buildRefreshConfig()
+
+    expect(mocks.mockDiscoverGitRepos).toHaveBeenCalledWith(
+      expect.objectContaining({ roots: ['/workspace'] }),
+    )
+    expect(config.localGit).toEqual({
+      repos: [{ path: '/discovered/a' }, { path: '/discovered/b' }],
+    })
+  })
+
+  it('merges explicit repos with discovered repos', () => {
+    mocks.mockDiscoverGitRepos.mockReturnValue(['/discovered/repo'])
+
+    vi.stubEnv('SECRET_HOUSE_GIT_REPOS', '/explicit/repo')
+    vi.stubEnv('SECRET_HOUSE_PROJECT_ROOTS', '/workspace')
+
+    const config = buildRefreshConfig()
+
+    expect(config.localGit).toEqual({
+      repos: [{ path: '/explicit/repo' }, { path: '/discovered/repo' }],
+    })
+  })
+
+  it('deduplicates when explicit and discovered repos overlap', () => {
+    mocks.mockDiscoverGitRepos.mockReturnValue(['/explicit/repo'])
+
+    vi.stubEnv('SECRET_HOUSE_GIT_REPOS', '/explicit/repo')
+    vi.stubEnv('SECRET_HOUSE_PROJECT_ROOTS', '/workspace')
+
+    const config = buildRefreshConfig()
+
+    expect(config.localGit!.repos).toHaveLength(1)
+    expect(config.localGit!.repos[0]!.path).toBe('/explicit/repo')
+  })
+
+  it('passes globs to the discovery function', () => {
+    mocks.mockDiscoverGitRepos.mockReturnValue([])
+
+    vi.stubEnv('SECRET_HOUSE_PROJECT_ROOTS', '/workspace')
+    vi.stubEnv('SECRET_HOUSE_GIT_REPO_GLOBS', 'project-*')
+
+    buildRefreshConfig()
+
+    expect(mocks.mockDiscoverGitRepos).toHaveBeenCalledWith(
+      expect.objectContaining({ globs: ['project-*'] }),
+    )
+  })
+
+  it('passes maxDepth to the discovery function', () => {
+    mocks.mockDiscoverGitRepos.mockReturnValue([])
+
+    vi.stubEnv('SECRET_HOUSE_PROJECT_ROOTS', '/workspace')
+    vi.stubEnv('SECRET_HOUSE_GIT_DISCOVERY_MAX_DEPTH', '5')
+
+    buildRefreshConfig()
+
+    expect(mocks.mockDiscoverGitRepos).toHaveBeenCalledWith(
+      expect.objectContaining({ maxDepth: 5 }),
+    )
+  })
+
+  it('passes excludes to the discovery function', () => {
+    mocks.mockDiscoverGitRepos.mockReturnValue([])
+
+    vi.stubEnv('SECRET_HOUSE_PROJECT_ROOTS', '/workspace')
+    vi.stubEnv('SECRET_HOUSE_GIT_EXCLUDE', 'node_modules,dist')
+
+    buildRefreshConfig()
+
+    expect(mocks.mockDiscoverGitRepos).toHaveBeenCalledWith(
+      expect.objectContaining({ excludes: ['node_modules', 'dist'] }),
+    )
+  })
+
+  it('warns and ignores invalid GIT_DISCOVERY_MAX_DEPTH', () => {
+    mocks.mockDiscoverGitRepos.mockReturnValue([])
+    const warnings: string[] = []
+    const origWarn = console.warn
+    console.warn = (msg: string) => { warnings.push(msg) }
+
+    try {
+      vi.stubEnv('SECRET_HOUSE_PROJECT_ROOTS', '/workspace')
+      vi.stubEnv('SECRET_HOUSE_GIT_DISCOVERY_MAX_DEPTH', 'not-a-number')
+
+      buildRefreshConfig()
+
+      expect(mocks.mockDiscoverGitRepos).toHaveBeenCalledWith(
+        expect.objectContaining({ roots: ['/workspace'] }),
+      )
+      expect(mocks.mockDiscoverGitRepos).not.toHaveBeenCalledWith(
+        expect.objectContaining({ maxDepth: expect.any(Number) }),
+      )
+      expect(warnings.some(w => w.includes('Invalid') && w.includes('GIT_DISCOVERY_MAX_DEPTH'))).toBe(true)
+    } finally {
+      console.warn = origWarn
+    }
+  })
+
+  it('warns and ignores negative GIT_DISCOVERY_MAX_DEPTH', () => {
+    mocks.mockDiscoverGitRepos.mockReturnValue([])
+    const warnings: string[] = []
+    const origWarn = console.warn
+    console.warn = (msg: string) => { warnings.push(msg) }
+
+    try {
+      vi.stubEnv('SECRET_HOUSE_PROJECT_ROOTS', '/workspace')
+      vi.stubEnv('SECRET_HOUSE_GIT_DISCOVERY_MAX_DEPTH', '-1')
+
+      buildRefreshConfig()
+
+      expect(warnings.some(w => w.includes('Invalid') && w.includes('GIT_DISCOVERY_MAX_DEPTH'))).toBe(true)
+    } finally {
+      console.warn = origWarn
+    }
+  })
+
+  it('does not call discoverGitRepos when GIT_REPO_ROOTS is empty', () => {
+    buildRefreshConfig({})
+    expect(mocks.mockDiscoverGitRepos).not.toHaveBeenCalled()
+  })
+
+  it('uses legacy GIT_REPO_ROOTS fallback', () => {
+    mocks.mockDiscoverGitRepos.mockReturnValue(['/legacy/repo'])
+
+    vi.stubEnv('GIT_REPO_ROOTS', '/legacy-workspace')
+
+    const config = buildRefreshConfig()
+
+    expect(mocks.mockDiscoverGitRepos).toHaveBeenCalledWith(
+      expect.objectContaining({ roots: ['/legacy-workspace'] }),
+    )
+    expect(config.localGit).toBeDefined()
+  })
+
+  it('prefers SECRET_HOUSE_PROJECT_ROOTS over legacy GIT_REPO_ROOTS', () => {
+    mocks.mockDiscoverGitRepos.mockReturnValue(['/preferred/repo'])
+
+    vi.stubEnv('SECRET_HOUSE_PROJECT_ROOTS', '/preferred')
+    vi.stubEnv('GIT_REPO_ROOTS', '/legacy')
+
+    const config = buildRefreshConfig()
+
+    expect(mocks.mockDiscoverGitRepos).toHaveBeenCalledWith(
+      expect.objectContaining({ roots: ['/preferred'] }),
+    )
   })
 })
 

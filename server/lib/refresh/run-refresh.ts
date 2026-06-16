@@ -1,8 +1,10 @@
 import { initDb, setRefreshInProgress, getRefreshInProgress, setRefreshRunState, setRefreshRunStatus } from '../../db/client'
 import { createOrchestrator } from '../orchestrator'
 import { getEnv } from '../env'
+import { discoverGitRepos } from '../git/discovery'
 import type { OrchestratorConfig, OrchestratorResult } from '../orchestrator/types'
 import type { SessionCollectorConfig } from '../sessions/types'
+import type { RepoDiscoveryConfig } from '../git/types'
 
 export interface RefreshRunResult {
   startedAt: string
@@ -33,12 +35,47 @@ export function buildRefreshConfig(env: NodeJS.ProcessEnv = process.env): Orches
   }
 
   const gitRepos = getEnv(env, 'SECRET_HOUSE_GIT_REPOS', 'GIT_REPOS')
-  if (gitRepos) {
-    const paths = gitRepos.split(',').map(path => path.trim()).filter(Boolean)
-    if (paths.length > 0) {
-      config.localGit = {
-        repos: paths.map(path => ({ path })),
+  const explicitPaths = gitRepos
+    ? gitRepos.split(',').map(path => path.trim()).filter(Boolean)
+    : []
+
+  const rootsRaw = getEnv(env, 'SECRET_HOUSE_PROJECT_ROOTS', 'GIT_REPO_ROOTS')
+  const globsRaw = getEnv(env, 'SECRET_HOUSE_GIT_REPO_GLOBS', 'GIT_REPO_GLOBS')
+  const maxDepthRaw = getEnv(env, 'SECRET_HOUSE_GIT_DISCOVERY_MAX_DEPTH', 'GIT_REPO_MAX_DEPTH')
+  const excludesRaw = getEnv(env, 'SECRET_HOUSE_GIT_EXCLUDE', 'GIT_REPO_EXCLUDES')
+
+  const allPaths = [...explicitPaths]
+
+  if (rootsRaw) {
+    const roots = rootsRaw.split(',').map(r => r.trim()).filter(Boolean)
+    if (roots.length > 0) {
+      const discoveryConfig: RepoDiscoveryConfig = { roots }
+      if (globsRaw) {
+        discoveryConfig.globs = globsRaw.split(',').map(g => g.trim()).filter(Boolean)
       }
+      if (maxDepthRaw) {
+        const parsed = Number.parseInt(maxDepthRaw, 10)
+        if (!Number.isNaN(parsed) && parsed >= 0) {
+          discoveryConfig.maxDepth = parsed
+        } else {
+          console.warn(`[signal-house] Invalid GIT_DISCOVERY_MAX_DEPTH: "${maxDepthRaw}" — must be a non-negative integer. Ignoring.`)
+        }
+      }
+      if (excludesRaw) {
+        discoveryConfig.excludes = excludesRaw.split(',').map(e => e.trim()).filter(Boolean)
+      }
+      const discovered = discoverGitRepos(discoveryConfig)
+      for (const p of discovered) {
+        if (!allPaths.includes(p)) {
+          allPaths.push(p)
+        }
+      }
+    }
+  }
+
+  if (allPaths.length > 0) {
+    config.localGit = {
+      repos: allPaths.map(path => ({ path })),
     }
   }
 

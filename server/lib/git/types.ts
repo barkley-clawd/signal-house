@@ -7,6 +7,13 @@ export interface LocalGitCollectorConfig {
   lookbackDays?: number
 }
 
+export interface RepoDiscoveryConfig {
+  roots: string[]
+  globs?: string[]
+  maxDepth?: number
+  excludes?: string[]
+}
+
 export interface LocalGitCollectorResult {
   repos: LocalGitRepoInfo[]
   errors: string[]

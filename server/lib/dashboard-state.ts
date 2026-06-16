@@ -61,7 +61,9 @@ function hasGithubConfig(): boolean {
 
 function hasLocalGitConfig(): boolean {
   const repos = getEnv(process.env, 'SECRET_HOUSE_GIT_REPOS', 'GIT_REPOS')
-  return Boolean(repos && repos.split(',').map(part => part.trim()).filter(Boolean).length > 0)
+  if (repos && repos.split(',').map(part => part.trim()).filter(Boolean).length > 0) return true
+  const roots = getEnv(process.env, 'SECRET_HOUSE_PROJECT_ROOTS', 'GIT_REPO_ROOTS')
+  return Boolean(roots && roots.split(',').map(r => r.trim()).filter(Boolean).length > 0)
 }
 
 function hasSessionConfig(): boolean {

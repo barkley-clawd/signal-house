@@ -156,6 +156,10 @@ SECRET_HOUSE_GITHUB_OWNER=your-org-or-user
 SECRET_HOUSE_GITHUB_REPO=your-repo
 
 SECRET_HOUSE_GIT_REPOS=/path/to/repo1,/path/to/repo2
+SECRET_HOUSE_PROJECT_ROOTS=/path/to/workspace
+SECRET_HOUSE_GIT_REPO_GLOBS=*
+SECRET_HOUSE_GIT_DISCOVERY_MAX_DEPTH=3
+SECRET_HOUSE_GIT_EXCLUDE=node_modules,dist
 
 SECRET_HOUSE_OPENCODE_BIN=
 SECRET_HOUSE_OPENCODE_COMMAND=opencode
@@ -177,9 +181,15 @@ SECRET_HOUSE_RUN_ON_STARTUP=true
 
 ### Local git configuration
 
-| Variable                 | Purpose                                             |
-| ------------------------ | --------------------------------------------------- |
-| `SECRET_HOUSE_GIT_REPOS` | Comma-separated list of local repo paths to inspect |
+| Variable                            | Purpose                                                         |
+| ----------------------------------- | --------------------------------------------------------------- |
+| `SECRET_HOUSE_GIT_REPOS`            | Comma-separated list of local repo paths to inspect             |
+| `SECRET_HOUSE_PROJECT_ROOTS`        | Comma-separated root directories to auto-discover git repos in |
+| `SECRET_HOUSE_GIT_REPO_GLOBS`       | Comma-separated glob patterns to filter discovered repo names   |
+| `SECRET_HOUSE_GIT_DISCOVERY_MAX_DEPTH` | Maximum subdirectory depth for discovery (default `3`, `0` = no recursion) |
+| `SECRET_HOUSE_GIT_EXCLUDE`          | Comma-separated directory names to skip during discovery        |
+
+Explicit `SECRET_HOUSE_GIT_REPOS` paths and auto-discovered paths are merged. Duplicates are removed automatically. Invalid values (e.g. a non-numeric `MAX_DEPTH`) produce a warning and are ignored rather than crashing.
 
 ### OpenCode session configuration
 
@@ -218,7 +228,7 @@ The poller is intended for a single local server process. Do not run multiple po
 
 Each `SECRET_HOUSE_*` variable has a legacy fallback name for backward compatibility. The preferred name takes precedence when both are set. Legacy names:
 
-`GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO`, `GIT_REPOS`, `OPENCODE_BIN`, `OPENCODE_COMMAND`, `SESSIONS_PERIOD_DAYS`, `METRICS_POLLER_ENABLED`, `METRICS_POLL_INTERVAL_SECONDS`, `METRICS_POLL_STARTUP_DELAY_SECONDS`, `METRICS_RUN_ON_STARTUP`
+`GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO`, `GIT_REPOS`, `GIT_REPO_ROOTS`, `GIT_REPO_GLOBS`, `GIT_REPO_MAX_DEPTH`, `GIT_REPO_EXCLUDES`, `OPENCODE_BIN`, `OPENCODE_COMMAND`, `SESSIONS_PERIOD_DAYS`, `METRICS_POLLER_ENABLED`, `METRICS_POLL_INTERVAL_SECONDS`, `METRICS_POLL_STARTUP_DELAY_SECONDS`, `METRICS_RUN_ON_STARTUP`
 
 ## Manual refresh
 
