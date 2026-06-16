@@ -1,5 +1,8 @@
+export const ALL_REPOS_REPO_KEY = 'all'
+
 export interface DailyMetricsRow {
   day: string
+  repoKey: string
   capturedAt: string
   source: string
   version: number
@@ -28,6 +31,7 @@ export interface DailyMetricsRow {
 
 export interface DailyMetricsInsert {
   day: string
+  repoKey: string
   capturedAt: string
   source: string
   reflectsCompleteData: boolean

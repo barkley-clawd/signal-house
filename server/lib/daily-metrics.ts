@@ -32,6 +32,92 @@ function countByDay<T>(
   return counts
 }
 
+type DailyMetricBuckets = {
+  issuesOpenedByDay: Map<string, number>
+  issuesClosedByDay: Map<string, number>
+  prsCreatedByDay: Map<string, number>
+  prsMergedByDay: Map<string, number>
+  ciCompletedByDay: Map<string, number>
+  ciPassByDay: Map<string, number>
+  ciFailByDay: Map<string, number>
+  sessionsByDay: Map<string, number>
+  sessionErrorsByDay: Map<string, number>
+  commitsByDay: Map<string, number>
+}
+
+function buildBuckets(snapshot: MetricSnapshot): DailyMetricBuckets {
+  const issuesOpenedByDay = countByDay(snapshot.issues, issue => issue.createdAt)
+  const issuesClosedByDay = countByDay(snapshot.issues, issue => issue.closedAt)
+  const prsCreatedByDay = countByDay(snapshot.pullRequests, pr => pr.createdAt)
+  const prsMergedByDay = countByDay(snapshot.pullRequests, pr => pr.mergedAt)
+  const ciCompletedByDay = countByDay(snapshot.workflowRuns, run => run.completedAt)
+  const ciPassByDay = countByDay(
+    snapshot.workflowRuns.filter(run => run.conclusion === 'success'),
+    run => run.completedAt,
+  )
+  const ciFailByDay = countByDay(
+    snapshot.workflowRuns.filter(run => run.conclusion === 'failure' || run.conclusion === 'timed_out' || run.conclusion === 'startup_failure'),
+    run => run.completedAt,
+  )
+  const sessionsByDay = countByDay(snapshot.sessions, session => session.timestamp)
+  const sessionErrorsByDay = countByDay(
+    snapshot.sessions.filter(session => !session.success),
+    session => session.timestamp,
+  )
+  const commitsByDay = new Map<string, number>()
+  for (const repo of snapshot.localGit) {
+    if (!repo.commitsByDay) continue
+    for (const [day, count] of Object.entries(repo.commitsByDay)) {
+      commitsByDay.set(day, (commitsByDay.get(day) || 0) + count)
+    }
+  }
+
+  return {
+    issuesOpenedByDay,
+    issuesClosedByDay,
+    prsCreatedByDay,
+    prsMergedByDay,
+    ciCompletedByDay,
+    ciPassByDay,
+    ciFailByDay,
+    sessionsByDay,
+    sessionErrorsByDay,
+    commitsByDay,
+  }
+}
+
+function pushRow(
+  rows: DailyMetricsInsert[],
+  params: {
+    day: string
+    repoKey: string
+    capturedAt: string
+    source: string
+    reflectsCompleteData: boolean
+    issuesOpened: number
+    issuesClosed: number
+    prsCreated: number
+    prsMerged: number
+    totalCommits: number
+    avgCycleTimeDays: number | null
+    medianCycleTimeDays: number | null
+    p95CycleTimeDays: number | null
+    cycleTimeSampleSize: number
+    ciTotalRuns: number
+    ciPassCount: number
+    ciFailCount: number
+    ciPassRate: number | null
+    ciAvgDurationMs: number | null
+    totalSessions: number
+    sessionErrorCount: number
+    staleIssues: number
+    stalePrs: number
+    warnings: string[]
+  },
+): void {
+  rows.push(params)
+}
+
 export function computeDailyMetrics(snapshot: MetricSnapshot): DailyMetricsInsert[] {
   const capturedAt = snapshot.capturedAt
   const capturedDay = toDayKey(capturedAt)
@@ -40,38 +126,12 @@ export function computeDailyMetrics(snapshot: MetricSnapshot): DailyMetricsInser
     ? ['Partial data: ' + snapshot.metadata.errors.join('; ')]
     : []
 
-  const issuesOpenedByDay = countByDay(snapshot.issues, (i) => i.createdAt)
-  const issuesClosedByDay = countByDay(snapshot.issues, (i) => i.closedAt)
-  const prsCreatedByDay = countByDay(snapshot.pullRequests, (pr) => pr.createdAt)
-  const prsMergedByDay = countByDay(snapshot.pullRequests, (pr) => pr.mergedAt)
-  const ciCompletedByDay = countByDay(snapshot.workflowRuns, (cr) => cr.completedAt)
-
-  const ciPassByDay = countByDay(
-    snapshot.workflowRuns.filter((cr) => cr.conclusion === 'success'),
-    (cr) => cr.completedAt,
-  )
-  const ciFailByDay = countByDay(
-    snapshot.workflowRuns.filter((cr) => cr.conclusion === 'failure' || cr.conclusion === 'timed_out' || cr.conclusion === 'startup_failure'),
-    (cr) => cr.completedAt,
-  )
-
-  const sessionsByDay = countByDay(snapshot.sessions, (s) => s.timestamp)
-  const sessionErrorsByDay = countByDay(
-    snapshot.sessions.filter((s) => !s.success),
-    (s) => s.timestamp,
-  )
+  const buckets = buildBuckets(snapshot)
   const sessionUsageAggregate = snapshot.aggregates.sessionUsage
   const useAggregateSessionFallback = snapshot.sessions.length === 0 && sessionUsageAggregate != null
 
   const totalCommits = snapshot.localGit.reduce((sum, r) => sum + r.recentCommits, 0)
-  const commitsByDay = new Map<string, number>()
-  for (const repo of snapshot.localGit) {
-    if (repo.commitsByDay) {
-      for (const [day, count] of Object.entries(repo.commitsByDay)) {
-        commitsByDay.set(day, (commitsByDay.get(day) || 0) + count)
-      }
-    }
-  }
+  const { issuesOpenedByDay, issuesClosedByDay, prsCreatedByDay, prsMergedByDay, ciCompletedByDay, ciPassByDay, ciFailByDay, sessionsByDay, sessionErrorsByDay, commitsByDay } = buckets
 
   const allDays = new Set<string>()
   for (const day of issuesOpenedByDay.keys()) allDays.add(day)
@@ -90,7 +150,7 @@ export function computeDailyMetrics(snapshot: MetricSnapshot): DailyMetricsInser
     for (const day of aggDays) allDays.add(day)
   }
 
-  allDays.add(toDayKey(capturedAt))
+  allDays.add(capturedDay)
 
   const cycleTime = snapshot.aggregates.cycleTime as CycleTimeAggregate | null
   const ci = snapshot.aggregates.ci as CIAggregate | null
@@ -106,8 +166,9 @@ export function computeDailyMetrics(snapshot: MetricSnapshot): DailyMetricsInser
     const ciPass = ciPassByDay.get(day) || 0
     const ciFail = ciFailByDay.get(day) || 0
 
-    inserts.push({
+    pushRow(inserts, {
       day,
+      repoKey: 'all',
       capturedAt,
       source,
       reflectsCompleteData: warnings.length === 0,
@@ -131,6 +192,62 @@ export function computeDailyMetrics(snapshot: MetricSnapshot): DailyMetricsInser
       stalePrs: staleWork.stalePRs,
       warnings,
     })
+  }
+
+  const repoKeys = new Set<string>()
+  for (const issue of snapshot.issues) repoKeys.add(issue.repoKey)
+  for (const pr of snapshot.pullRequests) repoKeys.add(pr.repoKey)
+  for (const run of snapshot.workflowRuns) repoKeys.add(run.repoKey)
+  for (const repo of snapshot.localGit) repoKeys.add(repo.repoKey)
+
+  for (const repoKey of Array.from(repoKeys).sort()) {
+    const repoDays = new Set<string>()
+    for (const issue of snapshot.issues.filter(item => item.repoKey === repoKey)) {
+      repoDays.add(toDayKey(issue.createdAt))
+      if (issue.closedAt) repoDays.add(toDayKey(issue.closedAt))
+    }
+    for (const pr of snapshot.pullRequests.filter(item => item.repoKey === repoKey)) {
+      repoDays.add(toDayKey(pr.createdAt))
+      if (pr.mergedAt) repoDays.add(toDayKey(pr.mergedAt))
+    }
+    for (const run of snapshot.workflowRuns.filter(item => item.repoKey === repoKey)) {
+      if (run.completedAt) repoDays.add(toDayKey(run.completedAt))
+    }
+    for (const repo of snapshot.localGit.filter(item => item.repoKey === repoKey)) {
+      for (const day of Object.keys(repo.commitsByDay ?? {})) {
+        repoDays.add(day)
+      }
+    }
+
+    for (const day of Array.from(repoDays).sort().reverse()) {
+      if (!allDays.has(day)) continue
+      pushRow(inserts, {
+        day,
+        repoKey,
+        capturedAt,
+        source,
+        reflectsCompleteData: warnings.length === 0,
+        issuesOpened: snapshot.issues.filter(item => item.repoKey === repoKey && toDayKey(item.createdAt) === day).length,
+        issuesClosed: snapshot.issues.filter(item => item.repoKey === repoKey && item.closedAt != null && toDayKey(item.closedAt) === day).length,
+        prsCreated: snapshot.pullRequests.filter(item => item.repoKey === repoKey && toDayKey(item.createdAt) === day).length,
+        prsMerged: snapshot.pullRequests.filter(item => item.repoKey === repoKey && item.mergedAt != null && toDayKey(item.mergedAt) === day).length,
+        totalCommits: snapshot.localGit.filter(item => item.repoKey === repoKey).reduce((sum, repo) => sum + (repo.commitsByDay?.[day] ?? 0), 0),
+        avgCycleTimeDays: null,
+        medianCycleTimeDays: null,
+        p95CycleTimeDays: null,
+        cycleTimeSampleSize: 0,
+        ciTotalRuns: 0,
+        ciPassCount: 0,
+        ciFailCount: 0,
+        ciPassRate: null,
+        ciAvgDurationMs: null,
+        totalSessions: 0,
+        sessionErrorCount: 0,
+        staleIssues: 0,
+        stalePrs: 0,
+        warnings,
+      })
+    }
   }
 
   if (ci && !hasCiRows) {

@@ -4,6 +4,7 @@ import { buildDashboardWindow } from '../dashboard-state'
 function makeRow(day: string, overrides: Partial<import('../../../types/daily-metrics').DailyMetricsRow> = {}) {
   return {
     day,
+    repoKey: 'all',
     capturedAt: `${day}T12:00:00.000Z`,
     source: 'orchestrated',
     version: 1,

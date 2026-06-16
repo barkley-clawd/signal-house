@@ -2,20 +2,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   mockSetHeader: vi.fn(),
+  mockGetQuery: vi.fn(),
   mockInitDb: vi.fn().mockResolvedValue(undefined),
   mockGetLatestState: vi.fn(),
   mockGetDailyMetricsRange: vi.fn(),
+  mockGetDailyMetricsRangeForRepo: vi.fn(),
 }))
 
 vi.mock('h3', () => ({
   defineEventHandler: (handler: Function) => handler,
   setHeader: mocks.mockSetHeader,
+  getQuery: mocks.mockGetQuery,
 }))
 
 vi.mock('../../db/client', () => ({
   initDb: mocks.mockInitDb,
   getLatestState: mocks.mockGetLatestState,
   getDailyMetricsRange: mocks.mockGetDailyMetricsRange,
+  getDailyMetricsRangeForRepo: mocks.mockGetDailyMetricsRangeForRepo,
 }))
 
 import handler from '../state.get'
@@ -30,6 +34,7 @@ describe('GET /api/state', () => {
     vi.stubEnv('SECRET_HOUSE_GITHUB_REPO', 'signal-house')
     vi.stubEnv('SECRET_HOUSE_GIT_REPOS', '/tmp/repo-a')
     vi.stubEnv('SECRET_HOUSE_SESSIONS_PERIOD_DAYS', '30')
+    mocks.mockGetQuery.mockReturnValue({})
     mocks.mockGetLatestState.mockReturnValue({
       snapshot: null,
       lastRefreshAt: null,
@@ -52,6 +57,7 @@ describe('GET /api/state', () => {
       },
     })
     mocks.mockGetDailyMetricsRange.mockReturnValue([])
+    mocks.mockGetDailyMetricsRangeForRepo.mockReturnValue([])
   })
 
   afterEach(() => {
@@ -130,6 +136,7 @@ describe('GET /api/state', () => {
     const rows = [
       {
         day: '2026-06-14',
+        repoKey: 'all',
         capturedAt: '2026-06-14T12:00:00.000Z',
         source: 'orchestrated',
         version: 1,
@@ -157,6 +164,7 @@ describe('GET /api/state', () => {
       },
       {
         day: '2026-06-12',
+        repoKey: 'all',
         capturedAt: '2026-06-12T12:00:00.000Z',
         source: 'orchestrated',
         version: 1,
@@ -299,6 +307,57 @@ describe('GET /api/state', () => {
         'Missing 26 of 28 days in the rolling window',
       ]),
     )
+  })
+
+  it('returns repo-filtered daily metrics when repoKey is provided', async () => {
+    mocks.mockGetQuery.mockReturnValue({ repoKey: 'github:barkley-clawd/signal-house' })
+    mocks.mockGetDailyMetricsRangeForRepo.mockReturnValue([
+      {
+        day: '2026-06-14',
+        repoKey: 'github:barkley-clawd/signal-house',
+        capturedAt: '2026-06-14T12:00:00.000Z',
+        source: 'orchestrated',
+        version: 1,
+        reflectsCompleteData: true,
+        issuesOpened: 1,
+        issuesClosed: 2,
+        prsCreated: 3,
+        prsMerged: 4,
+        totalCommits: 5,
+        avgCycleTimeDays: null,
+        medianCycleTimeDays: null,
+        p95CycleTimeDays: null,
+        cycleTimeSampleSize: 0,
+        ciTotalRuns: 0,
+        ciPassCount: 0,
+        ciFailCount: 0,
+        ciPassRate: null,
+        ciAvgDurationMs: null,
+        totalSessions: 0,
+        sessionErrorCount: 0,
+        staleIssues: 0,
+        stalePrs: 0,
+        warnings: [],
+        createdAt: '2026-06-14T12:00:00.000Z',
+      },
+    ])
+
+    const result = await handler({} as any)
+
+    expect(mocks.mockGetDailyMetricsRange).not.toHaveBeenCalled()
+    expect(mocks.mockGetDailyMetricsRangeForRepo).toHaveBeenCalledWith(
+      '2026-05-18',
+      '2026-06-14',
+      'github:barkley-clawd/signal-house',
+    )
+    expect(result.dashboardWindow.days.at(-1)).toMatchObject({
+      day: '2026-06-14',
+      isGap: false,
+      metrics: expect.objectContaining({
+        repoKey: 'github:barkley-clawd/signal-house',
+      }),
+    })
+    expect(result.dashboardWindow.coverage.daysWithData).toBe(1)
   })
 
   it('propagates refreshInProgress from the database', async () => {

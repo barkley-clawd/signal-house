@@ -106,8 +106,12 @@ function makeSnapshot(overrides: Partial<MetricSnapshot> = {}): MetricSnapshot {
   }
 }
 
+function allRow(rows: ReturnType<typeof computeDailyMetrics>, day: string) {
+  return rows.find((row) => row.day === day && row.repoKey === 'all')
+}
+
 describe('computeDailyMetrics', () => {
-    it('returns daily rows from issues bucket by createdAt/closedAt', () => {
+  it('returns daily rows from issues bucket by createdAt/closedAt', () => {
     const snapshot = makeSnapshot({
       issues: [
         makeIssue({ id: '1' }),
@@ -119,12 +123,12 @@ describe('computeDailyMetrics', () => {
     const rows = computeDailyMetrics(snapshot)
     expect(rows.length).toBeGreaterThanOrEqual(3)
 
-    const day1 = rows.find(r => r.day === '2026-06-01')
+    const day1 = allRow(rows, '2026-06-01')
     expect(day1).toBeDefined()
     expect(day1!.issuesOpened).toBe(2)
     expect(day1!.issuesClosed).toBe(0)
 
-    const day3 = rows.find(r => r.day === '2026-06-03')
+    const day3 = allRow(rows, '2026-06-03')
     expect(day3!.issuesClosed).toBe(1)
   })
 
@@ -136,8 +140,8 @@ describe('computeDailyMetrics', () => {
     })
 
     const rows = computeDailyMetrics(snapshot)
-    expect(rows.find(r => r.day === '2026-06-01')!.prsCreated).toBe(1)
-    expect(rows.find(r => r.day === '2026-06-02')!.prsMerged).toBe(1)
+    expect(allRow(rows, '2026-06-01')!.prsCreated).toBe(1)
+    expect(allRow(rows, '2026-06-02')!.prsMerged).toBe(1)
   })
 
   it('buckets sessions by day', () => {
@@ -150,10 +154,10 @@ describe('computeDailyMetrics', () => {
     })
 
     const rows = computeDailyMetrics(snapshot)
-    expect(rows.find(r => r.day === '2026-06-01')!.totalSessions).toBe(2)
-    expect(rows.find(r => r.day === '2026-06-01')!.sessionErrorCount).toBe(1)
-    expect(rows.find(r => r.day === '2026-06-02')!.totalSessions).toBe(1)
-    expect(rows.find(r => r.day === '2026-06-02')!.sessionErrorCount).toBe(0)
+    expect(allRow(rows, '2026-06-01')!.totalSessions).toBe(2)
+    expect(allRow(rows, '2026-06-01')!.sessionErrorCount).toBe(1)
+    expect(allRow(rows, '2026-06-02')!.totalSessions).toBe(1)
+    expect(allRow(rows, '2026-06-02')!.sessionErrorCount).toBe(0)
   })
 
   it('uses the session aggregate as a captured-day fallback when no per-session rows exist', () => {
@@ -206,9 +210,9 @@ describe('computeDailyMetrics', () => {
     })
 
     const rows = computeDailyMetrics(snapshot)
-    expect(rows.find(r => r.day === '2026-06-05')!.totalSessions).toBe(115)
-    expect(rows.find(r => r.day === '2026-06-05')!.sessionErrorCount).toBe(3)
-    expect(rows.find(r => r.day === '2026-06-04')!.totalSessions).toBe(0)
+    expect(allRow(rows, '2026-06-05')!.totalSessions).toBe(115)
+    expect(allRow(rows, '2026-06-05')!.sessionErrorCount).toBe(3)
+    expect(allRow(rows, '2026-06-04')!.totalSessions).toBe(0)
   })
 
   it('includes cycle time and CI fields from aggregates', () => {
@@ -277,6 +281,24 @@ describe('computeDailyMetrics', () => {
     expect(rows.some((row) => row.warnings.some((warning) => warning.includes('CI trend unavailable')))).toBe(true)
   })
 
+  it('emits repo-scoped rows and leaves missing repo/day combinations absent', () => {
+    const snapshot = makeSnapshot({
+      capturedAt: '2026-06-03T12:00:00Z',
+      issues: [
+        makeIssue({ id: '1', repo: 'one', repoKey: 'github:demo/repo-a', createdAt: '2026-06-01T10:00:00Z' }),
+        makeIssue({ id: '2', repo: 'two', repoKey: 'github:demo/repo-b', createdAt: '2026-06-03T10:00:00Z' }),
+      ],
+    })
+
+    const rows = computeDailyMetrics(snapshot)
+    expect(rows.some((row) => row.repoKey === 'all' && row.day === '2026-06-01')).toBe(true)
+    expect(rows.some((row) => row.repoKey === 'all' && row.day === '2026-06-03')).toBe(true)
+    expect(rows.some((row) => row.repoKey === 'github:demo/repo-a' && row.day === '2026-06-01')).toBe(true)
+    expect(rows.some((row) => row.repoKey === 'github:demo/repo-a' && row.day === '2026-06-03')).toBe(false)
+    expect(rows.some((row) => row.repoKey === 'github:demo/repo-b' && row.day === '2026-06-03')).toBe(true)
+    expect(rows.some((row) => row.repoKey === 'github:demo/repo-b' && row.day === '2026-06-01')).toBe(false)
+  })
+
   it('adds warnings when metadata has errors', () => {
     const snapshot = makeSnapshot({
       metadata: {
@@ -304,11 +326,11 @@ describe('computeDailyMetrics', () => {
     })
 
     const rows = computeDailyMetrics(snapshot)
-    expect(rows.find(r => r.day === '2026-06-01')!.totalCommits).toBe(4)
-    expect(rows.find(r => r.day === '2026-06-02')!.totalCommits).toBe(2)
-    expect(rows.find(r => r.day === '2026-06-03')!.totalCommits).toBe(9)
-    expect(rows.find(r => r.day === '2026-06-04')!.totalCommits).toBe(0)
-    expect(rows.find(r => r.day === '2026-06-05')!.totalCommits).toBe(0)
+    expect(allRow(rows, '2026-06-01')!.totalCommits).toBe(4)
+    expect(allRow(rows, '2026-06-02')!.totalCommits).toBe(2)
+    expect(allRow(rows, '2026-06-03')!.totalCommits).toBe(9)
+    expect(allRow(rows, '2026-06-04')!.totalCommits).toBe(0)
+    expect(allRow(rows, '2026-06-05')!.totalCommits).toBe(0)
   })
 
   it('falls back to flat totalCommits when no per-day breakdown is available', () => {
@@ -321,9 +343,7 @@ describe('computeDailyMetrics', () => {
 
     const rows = computeDailyMetrics(snapshot)
     expect(rows.length).toBeGreaterThan(0)
-    for (const row of rows) {
-      expect(row.totalCommits).toBe(15)
-    }
+    expect(allRow(rows, '2026-06-05')!.totalCommits).toBe(15)
   })
 
   it('always includes capturedAt day even when aggregate range does not cover it', () => {
@@ -355,7 +375,7 @@ describe('computeDailyMetrics', () => {
 
     const rows = computeDailyMetrics(snapshot)
     expect(rows.some(r => r.day === '2026-06-05')).toBe(true)
-    const todayRow = rows.find(r => r.day === '2026-06-05')
+    const todayRow = allRow(rows, '2026-06-05')
     expect(todayRow!.issuesOpened).toBe(0)
     expect(todayRow!.totalCommits).toBe(0)
     expect(todayRow!.staleIssues).toBe(0)

@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 export const SQL = {
 
@@ -37,8 +37,12 @@ export const SQL = {
     CREATE INDEX IF NOT EXISTS idx_aggregates_period
       ON aggregates(period_start, period_end);
 
-    CREATE TABLE IF NOT EXISTS daily_metrics (
-      day                   TEXT PRIMARY KEY,
+  `,
+
+  createDailyMetricsV3: `
+    CREATE TABLE IF NOT EXISTS daily_metrics_v3 (
+      day                   TEXT NOT NULL,
+      repo_key              TEXT NOT NULL DEFAULT 'all',
       captured_at           TEXT NOT NULL,
       source                TEXT NOT NULL DEFAULT 'orchestrated',
       version               INTEGER NOT NULL DEFAULT 1,
@@ -62,7 +66,8 @@ export const SQL = {
       stale_issues          INTEGER NOT NULL DEFAULT 0,
       stale_prs             INTEGER NOT NULL DEFAULT 0,
       warnings              TEXT NOT NULL DEFAULT '[]',
-      created_at            TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at            TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (day, repo_key)
     );
   `,
 
@@ -126,7 +131,7 @@ export const SQL = {
 
   upsertDailyMetrics: `
     INSERT INTO daily_metrics (
-      day, captured_at, source, version, reflects_complete_data,
+      day, repo_key, captured_at, source, version, reflects_complete_data,
       issues_opened, issues_closed, prs_created, prs_merged, total_commits,
       avg_cycle_time_days, median_cycle_time_days, p95_cycle_time_days, cycle_time_sample_size,
       ci_total_runs, ci_pass_count, ci_fail_count, ci_pass_rate, ci_avg_duration_ms,
@@ -134,7 +139,7 @@ export const SQL = {
       stale_issues, stale_prs,
       warnings
     ) VALUES (
-      @day, @capturedAt, @source, @version, @reflectsCompleteData,
+      @day, @repoKey, @capturedAt, @source, @version, @reflectsCompleteData,
       @issuesOpened, @issuesClosed, @prsCreated, @prsMerged, @totalCommits,
       @avgCycleTimeDays, @medianCycleTimeDays, @p95CycleTimeDays, @cycleTimeSampleSize,
       @ciTotalRuns, @ciPassCount, @ciFailCount, @ciPassRate, @ciAvgDurationMs,
@@ -142,7 +147,7 @@ export const SQL = {
       @staleIssues, @stalePrs,
       @warnings
     )
-    ON CONFLICT(day) DO UPDATE SET
+    ON CONFLICT(day, repo_key) DO UPDATE SET
       captured_at = excluded.captured_at,
       source = excluded.source,
       version = excluded.version,
@@ -171,11 +176,13 @@ export const SQL = {
   getDailyMetricsRange: `
     SELECT * FROM daily_metrics
     WHERE day >= @fromDay AND day <= @toDay
+      AND repo_key = COALESCE(@repoKey, repo_key)
     ORDER BY day DESC;
   `,
 
   getLatestDailyDay: `
     SELECT day FROM daily_metrics
+    WHERE repo_key = COALESCE(@repoKey, repo_key)
     ORDER BY day DESC
     LIMIT 1;
   `,

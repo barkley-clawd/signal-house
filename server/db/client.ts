@@ -156,6 +156,45 @@ function migrate(db: SqlJsDatabase): void {
   const current = stmt.step() ? Number(stmt.getAsObject().value) : 0
   stmt.free()
   if (current < SCHEMA_VERSION) {
+    if (current < 3) {
+      db.run(SQL.createDailyMetricsV3)
+
+      const legacyStmt = db.prepare(
+        `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'daily_metrics' LIMIT 1`
+      )
+      const hasLegacyDailyMetrics = legacyStmt.step()
+      legacyStmt.free()
+
+      if (hasLegacyDailyMetrics) {
+        db.run(`
+          INSERT INTO daily_metrics_v3 (
+            day, repo_key, captured_at, source, version, reflects_complete_data,
+            issues_opened, issues_closed, prs_created, prs_merged, total_commits,
+            avg_cycle_time_days, median_cycle_time_days, p95_cycle_time_days, cycle_time_sample_size,
+            ci_total_runs, ci_pass_count, ci_fail_count, ci_pass_rate, ci_avg_duration_ms,
+            total_sessions, session_error_count,
+            stale_issues, stale_prs,
+            warnings, created_at
+          )
+          SELECT
+            day, 'all', captured_at, source, version, reflects_complete_data,
+            issues_opened, issues_closed, prs_created, prs_merged, total_commits,
+            avg_cycle_time_days, median_cycle_time_days, p95_cycle_time_days, cycle_time_sample_size,
+            ci_total_runs, ci_pass_count, ci_fail_count, ci_pass_rate, ci_avg_duration_ms,
+            total_sessions, session_error_count,
+            stale_issues, stale_prs,
+            warnings, created_at
+          FROM daily_metrics;
+        `)
+        db.run('DROP TABLE daily_metrics;')
+      }
+
+      db.run(`
+        ALTER TABLE daily_metrics_v3 RENAME TO daily_metrics;
+        CREATE INDEX IF NOT EXISTS idx_daily_metrics_repo_key
+          ON daily_metrics(repo_key, day DESC);
+      `)
+    }
     db.run(SQL.upsertLatestState, {
       '@key': 'schema_version',
       '@value': String(SCHEMA_VERSION),
@@ -356,6 +395,7 @@ export function upsertDailyMetrics(row: DailyMetricsInsert): void {
   const db = getDb()
   db.run(SQL.upsertDailyMetrics, {
     '@day': row.day,
+    '@repoKey': row.repoKey,
     '@capturedAt': row.capturedAt,
     '@source': row.source,
     '@version': SCHEMA_VERSION,
@@ -386,6 +426,7 @@ export function upsertDailyMetrics(row: DailyMetricsInsert): void {
 function rowToDailyMetrics(row: Record<string, unknown>): DailyMetricsRow {
   return {
     day: String(row.day),
+    repoKey: String(row.repo_key),
     capturedAt: String(row.captured_at),
     source: String(row.source),
     version: Number(row.version),
@@ -414,9 +455,13 @@ function rowToDailyMetrics(row: Record<string, unknown>): DailyMetricsRow {
 }
 
 export function getDailyMetricsRange(fromDay: string, toDay: string): DailyMetricsRow[] {
+  return getDailyMetricsRangeForRepo(fromDay, toDay, 'all')
+}
+
+export function getDailyMetricsRangeForRepo(fromDay: string, toDay: string, repoKey: string): DailyMetricsRow[] {
   const db = getDb()
   const stmt = db.prepare(SQL.getDailyMetricsRange)
-  stmt.bind({ '@fromDay': fromDay, '@toDay': toDay })
+  stmt.bind({ '@fromDay': fromDay, '@toDay': toDay, '@repoKey': repoKey })
   const rows: DailyMetricsRow[] = []
   while (stmt.step()) {
     rows.push(rowToDailyMetrics(stmt.getAsObject() as Record<string, unknown>))
@@ -427,7 +472,16 @@ export function getDailyMetricsRange(fromDay: string, toDay: string): DailyMetri
 
 export function getLatestDailyDay(): string | null {
   const db = getDb()
+  const stmt = db.prepare(`SELECT day FROM daily_metrics ORDER BY day DESC LIMIT 1;`)
+  const result = stmt.step() ? String(stmt.getAsObject().day) : null
+  stmt.free()
+  return result
+}
+
+export function getLatestDailyDayForRepo(repoKey: string): string | null {
+  const db = getDb()
   const stmt = db.prepare(SQL.getLatestDailyDay)
+  stmt.bind({ '@repoKey': repoKey })
   const result = stmt.step() ? String(stmt.getAsObject().day) : null
   stmt.free()
   return result
