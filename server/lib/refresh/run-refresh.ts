@@ -23,6 +23,10 @@ export interface RefreshRunResult {
 export function buildRefreshConfig(env: NodeJS.ProcessEnv = process.env): OrchestratorConfig {
   const config: OrchestratorConfig = {}
 
+  function normalizeDiscoveredPath(entry: string | { path: string }): string {
+    return typeof entry === 'string' ? entry : entry.path
+  }
+
   const githubToken = getEnv(env, 'SECRET_HOUSE_GITHUB_TOKEN', 'GITHUB_TOKEN')
   const githubOwner = getEnv(env, 'SECRET_HOUSE_GITHUB_OWNER', 'GITHUB_OWNER')
   const githubRepo = getEnv(env, 'SECRET_HOUSE_GITHUB_REPO', 'GITHUB_REPO')
@@ -68,7 +72,8 @@ export function buildRefreshConfig(env: NodeJS.ProcessEnv = process.env): Orches
       for (const warning of discovered.warnings) {
         console.warn(`[signal-house] Repo discovery warning at ${warning.path}: ${warning.message}`)
       }
-      for (const p of discovered.repos) {
+      for (const repo of discovered.repos) {
+        const p = normalizeDiscoveredPath(repo)
         if (!allPaths.includes(p)) {
           allPaths.push(p)
         }

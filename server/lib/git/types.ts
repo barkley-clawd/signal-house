@@ -19,8 +19,15 @@ export interface RepoDiscoveryWarning {
   message: string
 }
 
+export interface RepoDiscoveryRepo {
+  path: string
+  originRemoteUrl: string | null
+  githubOwner: string | null
+  githubRepo: string | null
+}
+
 export interface RepoDiscoveryResult {
-  repos: string[]
+  repos: RepoDiscoveryRepo[]
   warnings: RepoDiscoveryWarning[]
 }
 

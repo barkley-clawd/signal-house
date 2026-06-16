@@ -21,6 +21,10 @@ afterEach(() => {
 })
 
 describe('discoverGitRepos', () => {
+  function repoPaths(result: ReturnType<typeof discoverGitRepos>): string[] {
+    return result.repos.map(repo => repo.path)
+  }
+
   it('discovers git repos in configured roots', () => {
     gitRepo(join(tmpDir, 'repo-a'))
     gitRepo(join(tmpDir, 'repo-b'))
@@ -29,8 +33,8 @@ describe('discoverGitRepos', () => {
     const result = discoverGitRepos({ roots: [tmpDir] })
 
     expect(result.repos).toHaveLength(2)
-    expect(result.repos).toContain(join(tmpDir, 'repo-a'))
-    expect(result.repos).toContain(join(tmpDir, 'repo-b'))
+    expect(repoPaths(result)).toContain(join(tmpDir, 'repo-a'))
+    expect(repoPaths(result)).toContain(join(tmpDir, 'repo-b'))
     expect(result.warnings).toEqual([])
   })
 
@@ -44,9 +48,9 @@ describe('discoverGitRepos', () => {
       maxDepth: 1,
     })
 
-    expect(result.repos).toContain(join(tmpDir, 'top-repo'))
-    expect(result.repos).toContain(join(tmpDir, 'level1', 'inner-repo'))
-    expect(result.repos).not.toContain(join(tmpDir, 'level1', 'level2', 'deep-repo'))
+    expect(repoPaths(result)).toContain(join(tmpDir, 'top-repo'))
+    expect(repoPaths(result)).toContain(join(tmpDir, 'level1', 'inner-repo'))
+    expect(repoPaths(result)).not.toContain(join(tmpDir, 'level1', 'level2', 'deep-repo'))
   })
 
   it('skips excluded directories', () => {
@@ -58,8 +62,8 @@ describe('discoverGitRepos', () => {
       excludes: ['node_modules'],
     })
 
-    expect(result.repos).not.toContain(join(tmpDir, 'node_modules'))
-    expect(result.repos).toContain(join(tmpDir, 'src'))
+    expect(repoPaths(result)).not.toContain(join(tmpDir, 'node_modules'))
+    expect(repoPaths(result)).toContain(join(tmpDir, 'src'))
   })
 
   it('deduplicates the same repo reached through a symlinked root', () => {
@@ -71,7 +75,7 @@ describe('discoverGitRepos', () => {
       roots: [repo, join(tmpDir, 'shared-repo-link')],
     })
 
-    expect(result.repos).toEqual([repo])
+    expect(repoPaths(result)).toEqual([repo])
   })
 
   it('warns for missing roots but keeps scanning other roots', () => {
@@ -81,7 +85,7 @@ describe('discoverGitRepos', () => {
       roots: [join(tmpDir, 'missing-root'), tmpDir],
     })
 
-    expect(result.repos).toContain(join(tmpDir, 'real-repo'))
+    expect(repoPaths(result)).toContain(join(tmpDir, 'real-repo'))
     expect(result.warnings.some(warning => warning.path.includes('missing-root'))).toBe(true)
   })
 

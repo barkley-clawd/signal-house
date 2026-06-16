@@ -1,6 +1,8 @@
+import { execSync } from 'node:child_process'
 import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import type { RepoDiscoveryConfig, RepoDiscoveryResult, RepoDiscoveryWarning } from '../git/types'
+import { parseGithubOriginRemote } from '../git/remotes'
+import type { RepoDiscoveryConfig, RepoDiscoveryRepo, RepoDiscoveryResult, RepoDiscoveryWarning } from '../git/types'
 
 const DEFAULT_EXCLUDES = new Set(['node_modules', '.git'])
 const DEFAULT_MAX_DEPTH = 3
@@ -25,13 +27,26 @@ function isGitRepo(path: string): boolean {
   return existsSync(join(path, '.git'))
 }
 
+function readOriginRemote(path: string): string | null {
+  try {
+    const output = execSync('git config --get remote.origin.url', {
+      cwd: path,
+      stdio: 'pipe',
+      encoding: 'utf-8',
+    }).trim()
+    return output || null
+  } catch {
+    return null
+  }
+}
+
 function walk(
   currentPath: string,
   depth: number,
   globs: string[],
   maxDepth: number,
   excludes: Set<string>,
-  found: string[],
+  found: RepoDiscoveryRepo[],
   seenRealpaths: Set<string>,
   warnings: RepoDiscoveryWarning[],
 ): void {
@@ -68,7 +83,14 @@ function walk(
           const repoRealpath = realpathSync(fullPath)
           if (!seenRealpaths.has(repoRealpath)) {
             seenRealpaths.add(repoRealpath)
-            found.push(fullPath)
+            const originRemoteUrl = readOriginRemote(fullPath)
+            const parsedRemote = originRemoteUrl ? parseGithubOriginRemote(originRemoteUrl) : null
+            found.push({
+              path: fullPath,
+              originRemoteUrl,
+              githubOwner: parsedRemote?.githubOwner ?? null,
+              githubRepo: parsedRemote?.githubRepo ?? null,
+            })
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error)
@@ -88,7 +110,7 @@ export function discoverGitRepos(config: RepoDiscoveryConfig): RepoDiscoveryResu
   const maxDepth = config.maxDepth ?? DEFAULT_MAX_DEPTH
   const excludes = new Set([...DEFAULT_EXCLUDES, ...(config.excludes ?? [])])
   const warnings: RepoDiscoveryWarning[] = []
-  const found: string[] = []
+  const found: RepoDiscoveryRepo[] = []
   const seenRealpaths = new Set<string>()
 
   for (const root of roots) {
@@ -118,7 +140,14 @@ export function discoverGitRepos(config: RepoDiscoveryConfig): RepoDiscoveryResu
         const repoRealpath = realpathSync(resolvedRoot)
         if (!seenRealpaths.has(repoRealpath)) {
           seenRealpaths.add(repoRealpath)
-          found.push(resolvedRoot)
+          const originRemoteUrl = readOriginRemote(resolvedRoot)
+          const parsedRemote = originRemoteUrl ? parseGithubOriginRemote(originRemoteUrl) : null
+          found.push({
+            path: resolvedRoot,
+            originRemoteUrl,
+            githubOwner: parsedRemote?.githubOwner ?? null,
+            githubRepo: parsedRemote?.githubRepo ?? null,
+          })
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
