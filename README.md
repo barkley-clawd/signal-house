@@ -1,3 +1,5 @@
+![Signal House logo](https://raw.githubusercontent.com/barkley-clawd/signal-house/refs/heads/main/assets/signal-house-logo.png)
+
 # Signal House
 
 Signal House is a local operator dashboard for Clawd.
