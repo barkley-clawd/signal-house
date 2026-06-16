@@ -37,6 +37,19 @@ describe('GET /api/state', () => {
       refreshInProgress: false,
       isStale: true,
       dashboardWindow: null,
+      diagnostics: {
+        configuredProjectRoots: ['/workspace'],
+        discoveredRepos: [],
+        skippedPaths: [],
+        parsedGitHubRemotes: [],
+        collectionTargets: [],
+        cacheAgeSeconds: null,
+        pollerEnabled: false,
+        pollerIntervalSeconds: 300,
+        lastSuccessfulRefreshAt: null,
+        lastError: null,
+        sourceHealth: {},
+      },
     })
     mocks.mockGetDailyMetricsRange.mockReturnValue([])
   })
@@ -95,6 +108,19 @@ describe('GET /api/state', () => {
       refreshInProgress: false,
       isStale: false,
       dashboardWindow: null,
+      diagnostics: {
+        configuredProjectRoots: ['/workspace'],
+        discoveredRepos: [],
+        skippedPaths: [],
+        parsedGitHubRemotes: [],
+        collectionTargets: ['github', 'localGit'],
+        cacheAgeSeconds: 0,
+        pollerEnabled: true,
+        pollerIntervalSeconds: 300,
+        lastSuccessfulRefreshAt: '2026-06-14T12:00:00.000Z',
+        lastError: null,
+        sourceHealth: {},
+      },
     }
     const rows = [
       {

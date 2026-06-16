@@ -52,6 +52,47 @@
       </div>
     </UiCard>
 
+    <UiCard v-if="diagnostics" class="diagnostics" title="Source Diagnostics">
+      <div class="diagnostics__grid">
+        <div class="diagnostics__block">
+          <h3>Config</h3>
+          <p><strong>Project roots:</strong> {{ diagnostics.configuredProjectRoots.length ? diagnostics.configuredProjectRoots.join(', ') : 'None configured' }}</p>
+          <p><strong>Poller:</strong> {{ diagnostics.pollerEnabled ? `Enabled · every ${diagnostics.pollerIntervalSeconds ?? 'unknown'}s` : 'Disabled' }}</p>
+          <p><strong>Cache age:</strong> {{ diagnostics.cacheAgeSeconds == null ? 'Unknown' : `${diagnostics.cacheAgeSeconds}s` }}</p>
+        </div>
+
+        <div class="diagnostics__block">
+          <h3>Repos</h3>
+          <p><strong>Discovered:</strong> {{ diagnostics.discoveredRepos.length }}</p>
+          <p><strong>GitHub remotes:</strong> {{ diagnostics.parsedGitHubRemotes.length }}</p>
+          <p><strong>Targets:</strong> {{ diagnostics.collectionTargets.length ? diagnostics.collectionTargets.join(', ') : 'None' }}</p>
+        </div>
+
+        <div class="diagnostics__block">
+          <h3>Health</h3>
+          <p><strong>Last success:</strong> {{ diagnostics.lastSuccessfulRefreshAt ? new Date(diagnostics.lastSuccessfulRefreshAt).toLocaleString() : 'None' }}</p>
+          <p><strong>Last error:</strong> {{ diagnostics.lastError ?? 'None' }}</p>
+          <p><strong>Source states:</strong> see pills above</p>
+        </div>
+      </div>
+      <div v-if="diagnostics.skippedPaths.length" class="diagnostics__warnings">
+        <h3>Skipped paths and warnings</h3>
+        <ul>
+          <li v-for="warning in diagnostics.skippedPaths" :key="`${warning.path}:${warning.message}`">
+            <strong>{{ warning.path }}:</strong> {{ warning.message }}
+          </li>
+        </ul>
+      </div>
+      <div v-if="diagnostics.discoveredRepos.length" class="diagnostics__repos">
+        <h3>Discovered repos</h3>
+        <ul>
+          <li v-for="repo in diagnostics.discoveredRepos" :key="repo.repoKey">
+            <strong>{{ repo.name }}</strong> · {{ repo.path ?? 'unknown path' }} · {{ repo.remoteUrl ?? 'no remote' }}
+          </li>
+        </ul>
+      </div>
+    </UiCard>
+
     <!-- Coverage / window info -->
     <div v-if="coverage && !loading && !error" class="coverage-row">
       <svg class="coverage-row__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -237,6 +278,8 @@ const sourceHealthEntries = computed(() => {
   const health = refreshHealth.value?.sourceHealth ?? {}
   return Object.entries(health).map(([name, value]) => ({ name, ...value }))
 })
+
+const diagnostics = computed(() => stateData.value?.diagnostics ?? null)
 
 const nextRefreshLabel = computed(() => {
   if (!stateData.value?.pollerEnabled) return 'Manual only'

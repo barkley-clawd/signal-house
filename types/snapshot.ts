@@ -165,6 +165,34 @@ export interface LatestState {
   nextRunAt: string | null
   dashboardWindow: DashboardWindow | null
   refreshState: RefreshRunState
+  diagnostics: SourceDiagnostics
+}
+
+export interface SourceDiagnostics {
+  configuredProjectRoots: string[]
+  discoveredRepos: Array<{
+    repoKey: string
+    name: string
+    path: string | null
+    remoteUrl: string | null
+    githubOwner: string | null
+    githubRepo: string | null
+    source: 'local' | 'github' | 'both'
+  }>
+  skippedPaths: Array<{ path: string; message: string }>
+  parsedGitHubRemotes: Array<{
+    repoKey: string
+    remoteUrl: string | null
+    githubOwner: string | null
+    githubRepo: string | null
+  }>
+  collectionTargets: string[]
+  cacheAgeSeconds: number | null
+  pollerEnabled: boolean
+  pollerIntervalSeconds: number | null
+  lastSuccessfulRefreshAt: string | null
+  lastError: string | null
+  sourceHealth: Record<string, RefreshSourceHealth>
 }
 
 export type RefreshRunStatus = 'idle' | 'running' | 'success' | 'failed' | 'skipped'
