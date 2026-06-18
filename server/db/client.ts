@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { SQL, SCHEMA_VERSION } from './schema'
 import { getBooleanEnv, getEnv } from '../lib/env'
@@ -152,25 +152,29 @@ export async function initDb(): Promise<Db> {
 }
 
 function migrate(db: Db): void {
-  db.exec(SQL.createTables)
-  db.exec(SQL.createSourceDataTables)
-  const row = db.prepare(`SELECT value FROM latest_state WHERE key = 'schema_version'`).get() as { value?: unknown } | undefined
-  const current = row ? Number(row.value) : 0
-  if (current >= SCHEMA_VERSION) return
+  const runMigrations = db.transaction(() => {
+    db.exec(SQL.createTables)
+    db.exec(SQL.createSourceDataTables)
+    const row = db.prepare(`SELECT value FROM latest_state WHERE key = 'schema_version'`).get() as { value?: unknown } | undefined
+    const current = row ? Number(row.value) : 0
+    if (current >= SCHEMA_VERSION) return
 
-  db.exec(SQL.dropTables)
-  db.exec(SQL.createTables)
-  db.exec(SQL.createSourceDataTables)
-  db.exec(SQL.createDailyMetricsV3)
-  db.exec(`
-    ALTER TABLE daily_metrics_v3 RENAME TO daily_metrics;
-    CREATE INDEX IF NOT EXISTS idx_daily_metrics_repo_key
-      ON daily_metrics(repo_key, day DESC);
-  `)
-  db.prepare(SQL.upsertLatestState).run({
-    key: 'schema_version',
-    value: String(SCHEMA_VERSION),
+    db.exec(SQL.dropTables)
+    db.exec(SQL.createTables)
+    db.exec(SQL.createSourceDataTables)
+    db.exec(SQL.createDailyMetricsV3)
+    db.exec(`
+      ALTER TABLE daily_metrics_v3 RENAME TO daily_metrics;
+      CREATE INDEX IF NOT EXISTS idx_daily_metrics_repo_key
+        ON daily_metrics(repo_key, day DESC);
+    `)
+    db.prepare(SQL.upsertLatestState).run({
+      key: 'schema_version',
+      value: String(SCHEMA_VERSION),
+    })
   })
+
+  runMigrations()
 }
 
 export function save(): void {

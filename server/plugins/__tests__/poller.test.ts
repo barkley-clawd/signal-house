@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  mockInitDb: vi.fn(),
   mockStartMetricsPoller: vi.fn(),
   mockStopMetricsPoller: vi.fn(),
   mockGetPollerConfig: vi.fn(),
+}))
+
+vi.mock('../../db/client', () => ({
+  initDb: mocks.mockInitDb,
 }))
 
 vi.mock('../../lib/poller', () => ({
@@ -41,7 +46,8 @@ describe('poller plugin', () => {
     vi.restoreAllMocks()
   })
 
-  it('does not start the poller or register a close hook when disabled', () => {
+  it('does not start the poller or register a close hook when disabled', async () => {
+    mocks.mockInitDb.mockResolvedValue(undefined)
     mocks.mockGetPollerConfig.mockReturnValue({
       enabled: false,
       intervalMs: 300000,
@@ -49,14 +55,16 @@ describe('poller plugin', () => {
       startupDelayMs: 0,
     })
 
-    ;(pollerPlugin as (app: unknown) => void)(makeNitroApp())
+    await (pollerPlugin as (app: unknown) => Promise<void>)(makeNitroApp())
 
+    expect(mocks.mockInitDb).toHaveBeenCalledTimes(1)
     expect(mocks.mockStartMetricsPoller).not.toHaveBeenCalled()
     expect(mockHooks).toHaveLength(0)
   })
 
-  it('starts the poller at process startup and stops it on the close hook', () => {
+  it('starts the poller at process startup and stops it on the close hook', async () => {
     const runtime = { stop: vi.fn() }
+    mocks.mockInitDb.mockResolvedValue(undefined)
     mocks.mockGetPollerConfig.mockReturnValue({
       enabled: true,
       intervalMs: 300000,
@@ -65,8 +73,9 @@ describe('poller plugin', () => {
     })
     mocks.mockStartMetricsPoller.mockReturnValue(runtime)
 
-    ;(pollerPlugin as (app: unknown) => void)(makeNitroApp())
+    await (pollerPlugin as (app: unknown) => Promise<void>)(makeNitroApp())
 
+    expect(mocks.mockInitDb).toHaveBeenCalledTimes(1)
     expect(mocks.mockStartMetricsPoller).toHaveBeenCalledWith({
       enabled: true,
       intervalMs: 300000,
@@ -81,7 +90,8 @@ describe('poller plugin', () => {
     expect(runtime.stop).toHaveBeenCalledTimes(1)
   })
 
-  it('does not throw on close when startMetricsPoller returned null', () => {
+  it('does not throw on close when startMetricsPoller returned null', async () => {
+    mocks.mockInitDb.mockResolvedValue(undefined)
     mocks.mockGetPollerConfig.mockReturnValue({
       enabled: true,
       intervalMs: 300000,
@@ -90,7 +100,7 @@ describe('poller plugin', () => {
     })
     mocks.mockStartMetricsPoller.mockReturnValue(null)
 
-    ;(pollerPlugin as (app: unknown) => void)(makeNitroApp())
+    await (pollerPlugin as (app: unknown) => Promise<void>)(makeNitroApp())
 
     const closeHook = mockHooks.find(h => h.name === 'close')
     expect(closeHook).toBeDefined()
