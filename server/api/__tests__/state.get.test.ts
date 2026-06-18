@@ -895,11 +895,41 @@ describe('GET /api/state', () => {
     })
 
     mocks.mockGetQuery.mockReturnValue({ repoKey: 'github:demo/repo-a' })
+    mocks.mockGetDailyMetricsRangeForRepo.mockReturnValue([
+      {
+        day: '2026-06-14',
+        repoKey: 'github:demo/repo-a',
+        capturedAt: '2026-06-14T12:00:00.000Z',
+        source: 'orchestrated',
+        version: 1,
+        reflectsCompleteData: true,
+        issuesOpened: 1,
+        issuesClosed: 0,
+        prsCreated: 1,
+        prsMerged: 1,
+        totalCommits: 2,
+        avgCycleTimeDays: null,
+        medianCycleTimeDays: null,
+        p95CycleTimeDays: null,
+        cycleTimeSampleSize: 0,
+        ciTotalRuns: 0,
+        ciPassCount: 0,
+        ciFailCount: 0,
+        ciPassRate: null,
+        ciAvgDurationMs: null,
+        totalSessions: 0,
+        sessionErrorCount: 0,
+        staleIssues: 0,
+        stalePrs: 0,
+        warnings: [],
+        createdAt: '2026-06-14T12:00:00.000Z',
+      },
+    ])
 
     const result = await handler({} as any)
 
     expect(mocks.mockGetDailyMetricsRange).not.toHaveBeenCalled()
-    expect(mocks.mockGetDailyMetricsRangeForRepo).not.toHaveBeenCalled()
+    expect(mocks.mockGetDailyMetricsRangeForRepo).toHaveBeenCalledWith('2026-05-18', '2026-06-14', 'github:demo/repo-a')
     expect(result.selectedRepoKey).toBe('github:demo/repo-a')
     expect(result.snapshot?.issues).toHaveLength(2)
     expect(result.viewSnapshot?.issues).toHaveLength(1)

@@ -569,6 +569,43 @@ export const SQL = {
       error = excluded.error;
   `,
 
+  getAllSourceIssues: `
+    SELECT * FROM source_issues ORDER BY created_at DESC;
+  `,
+
+  getAllSourcePullRequests: `
+    SELECT * FROM source_pull_requests ORDER BY created_at DESC;
+  `,
+
+  getAllSourceWorkflowRuns: `
+    SELECT * FROM source_workflow_runs ORDER BY created_at DESC;
+  `,
+
+  getAllSourceSessions: `
+    SELECT * FROM source_sessions ORDER BY timestamp DESC;
+  `,
+
+  getAllSourceRepositories: `
+    SELECT * FROM source_repositories ORDER BY repo_key;
+  `,
+
+  getAllSourceLocalGit: `
+    SELECT * FROM source_local_git ORDER BY repo_key;
+  `,
+
+  getLatestSnapshotId: `
+    SELECT id, captured_at FROM snapshots ORDER BY captured_at DESC LIMIT 1;
+  `,
+
+  countNormalizedRowsForSnapshot: `
+    SELECT
+      (SELECT COUNT(*) FROM source_issues WHERE last_snapshot_id = @snapshotId) as issues,
+      (SELECT COUNT(*) FROM source_pull_requests WHERE last_snapshot_id = @snapshotId) as pull_requests,
+      (SELECT COUNT(*) FROM source_workflow_runs WHERE last_snapshot_id = @snapshotId) as workflow_runs,
+      (SELECT COUNT(*) FROM source_repositories WHERE last_snapshot_id = @snapshotId) as repositories,
+      (SELECT COUNT(*) FROM source_local_git WHERE last_snapshot_id = @snapshotId) as local_git;
+  `,
+
 }
 
 export type QueryName = keyof typeof SQL

@@ -5,8 +5,9 @@ import { SQL, SCHEMA_VERSION } from './schema'
 import { getBooleanEnv, getEnv } from '../lib/env'
 import { getRefreshHistoryLimit, getStaleThresholdMs } from '../lib/runtime-config'
 import type { MetricSnapshot, SnapshotRow, LatestState, RefreshRunRecord, RefreshRunState, RefreshSourceHealth, RefreshRunStatus, SourceDiagnostics } from '../../types/snapshot'
-import type { AggregateType } from '../../types/aggregates'
+import type { AggregateType, DashboardAggregates, ThroughputAggregate, CycleTimeAggregate, CIAggregate, StaleWorkAggregate, SessionUsageAggregate } from '../../types/aggregates'
 import type { DailyMetricsInsert, DailyMetricsRow } from '../../types/daily-metrics'
+import type { IssueMetric, PullRequestMetric, WorkflowRunMetric, RepositoryIdentity, SessionMetric, LocalGitRepoMetric } from '../../types/metrics'
 import { computeDailyMetrics } from '../lib/daily-metrics'
 
 export type Db = Database.Database
@@ -264,7 +265,9 @@ export function getRefreshInProgress(): boolean {
 }
 
 export function getLatestState(): LatestState {
-  const snapshot = getLatestSnapshot()
+  const normalizedSnapshot = getNormalizedSnapshot()
+  const blobSnapshot = getLatestSnapshot()
+  const snapshot = normalizedSnapshot ?? blobSnapshot
   const db = getDb()
 
   const lastRefreshRow = db.prepare(SQL.getLatestState).get({ key: 'last_successful_refresh' }) as { value?: unknown } | undefined
@@ -633,6 +636,229 @@ export function persistSnapshot(snapshot: MetricSnapshot): void {
     upsertDailyMetricsFromSnapshot(snapshot)
   })
   transaction()
+}
+
+// ── Normalized source data read helpers ────────────────────────────
+
+function rowToIssueMetric(row: Record<string, unknown>): IssueMetric {
+  return {
+    id: String(row.id),
+    title: String(row.title),
+    state: String(row.state) as IssueMetric['state'],
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+    closedAt: row.closed_at ? String(row.closed_at) : null,
+    repo: String(row.repo),
+    repoKey: String(row.repo_key),
+    labels: JSON.parse(String(row.labels)),
+    assignee: row.assignee ? String(row.assignee) : null,
+    milestone: row.milestone ? String(row.milestone) : null,
+    url: String(row.url),
+  }
+}
+
+function rowToPullRequestMetric(row: Record<string, unknown>): PullRequestMetric {
+  return {
+    id: String(row.id),
+    title: String(row.title),
+    state: String(row.state) as PullRequestMetric['state'],
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+    headSha: row.head_sha ? String(row.head_sha) : null,
+    mergedAt: row.merged_at ? String(row.merged_at) : null,
+    closedAt: row.closed_at ? String(row.closed_at) : null,
+    repo: String(row.repo),
+    repoKey: String(row.repo_key),
+    author: String(row.author),
+    labels: JSON.parse(String(row.labels)),
+    additions: row.additions != null ? Number(row.additions) : null,
+    deletions: row.deletions != null ? Number(row.deletions) : null,
+    changedFiles: row.changed_files != null ? Number(row.changed_files) : null,
+    url: String(row.url),
+    ciStatus: row.ci_status ? String(row.ci_status) as PullRequestMetric['ciStatus'] : null,
+  }
+}
+
+function rowToWorkflowRunMetric(row: Record<string, unknown>): WorkflowRunMetric {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    status: String(row.status) as WorkflowRunMetric['status'],
+    conclusion: row.conclusion ? String(row.conclusion) as WorkflowRunMetric['conclusion'] : null,
+    createdAt: String(row.created_at),
+    completedAt: row.completed_at ? String(row.completed_at) : null,
+    headSha: row.head_sha ? String(row.head_sha) : null,
+    repo: String(row.repo),
+    repoKey: String(row.repo_key),
+    branch: String(row.branch),
+    workflowName: String(row.workflow_name),
+    url: row.url ? String(row.url) : null,
+  }
+}
+
+function rowToSessionMetric(row: Record<string, unknown>): SessionMetric {
+  return {
+    id: String(row.id),
+    toolName: String(row.tool_name),
+    action: String(row.action),
+    timestamp: String(row.timestamp),
+    durationMs: row.duration_ms != null ? Number(row.duration_ms) : null,
+    metadata: JSON.parse(String(row.metadata)),
+    success: Number(row.success) === 1,
+  }
+}
+
+function rowToRepositoryIdentity(row: Record<string, unknown>): RepositoryIdentity {
+  return {
+    repoKey: String(row.repo_key),
+    name: String(row.name),
+    localPath: row.local_path ? String(row.local_path) : null,
+    remoteUrl: row.remote_url ? String(row.remote_url) : null,
+    githubOwner: row.github_owner ? String(row.github_owner) : null,
+    githubRepo: row.github_repo ? String(row.github_repo) : null,
+    source: String(row.source) as RepositoryIdentity['source'],
+  }
+}
+
+function rowToLocalGitRepoMetric(row: Record<string, unknown>): LocalGitRepoMetric {
+  return {
+    repoKey: String(row.repo_key),
+    source: String(row.source) as LocalGitRepoMetric['source'],
+    path: String(row.path),
+    repoName: String(row.repo_name),
+    remoteUrl: row.remote_url ? String(row.remote_url) : null,
+    githubOwner: row.github_owner ? String(row.github_owner) : null,
+    githubRepo: row.github_repo ? String(row.github_repo) : null,
+    defaultBranch: row.default_branch ? String(row.default_branch) : null,
+    isGitRepo: Number(row.is_git_repo) === 1,
+    recentCommits: Number(row.recent_commits),
+    commitsByDay: {},
+    authors: JSON.parse(String(row.authors)),
+    latestCommitAt: row.latest_commit_at ? String(row.latest_commit_at) : null,
+    error: row.error ? String(row.error) : null,
+  }
+}
+
+function readAllSourceIssues(): IssueMetric[] {
+  const db = getDb()
+  const rows = db.prepare(SQL.getAllSourceIssues).all() as Record<string, unknown>[]
+  return rows.map(rowToIssueMetric)
+}
+
+function readAllSourcePullRequests(): PullRequestMetric[] {
+  const db = getDb()
+  const rows = db.prepare(SQL.getAllSourcePullRequests).all() as Record<string, unknown>[]
+  return rows.map(rowToPullRequestMetric)
+}
+
+function readAllSourceWorkflowRuns(): WorkflowRunMetric[] {
+  const db = getDb()
+  const rows = db.prepare(SQL.getAllSourceWorkflowRuns).all() as Record<string, unknown>[]
+  return rows.map(rowToWorkflowRunMetric)
+}
+
+function readAllSourceSessions(): SessionMetric[] {
+  const db = getDb()
+  const rows = db.prepare(SQL.getAllSourceSessions).all() as Record<string, unknown>[]
+  return rows.map(rowToSessionMetric)
+}
+
+function readAllSourceRepositories(): RepositoryIdentity[] {
+  const db = getDb()
+  const rows = db.prepare(SQL.getAllSourceRepositories).all() as Record<string, unknown>[]
+  return rows.map(rowToRepositoryIdentity)
+}
+
+function readAllSourceLocalGit(): LocalGitRepoMetric[] {
+  const db = getDb()
+  const rows = db.prepare(SQL.getAllSourceLocalGit).all() as Record<string, unknown>[]
+  return rows.map(rowToLocalGitRepoMetric)
+}
+
+function readAggregatesForSnapshot(snapshotId: string): DashboardAggregates | null {
+  const db = getDb()
+  const rows = db.prepare(`SELECT type, data, period_start, period_end FROM aggregates WHERE snapshot_id = ?`).all(snapshotId) as Array<{ type: string; data: string; period_start: string; period_end: string }>
+  if (rows.length === 0) return null
+
+  let throughput: ThroughputAggregate | null = null
+  let cycleTime: CycleTimeAggregate | null = null
+  let ci: CIAggregate | null = null
+  let staleWork: StaleWorkAggregate | null = null
+  let sessionUsage: SessionUsageAggregate | null = null
+
+  for (const row of rows) {
+    const data = JSON.parse(row.data)
+    switch (row.type) {
+      case 'throughput': throughput = data as ThroughputAggregate; break
+      case 'cycleTime': cycleTime = data as CycleTimeAggregate; break
+      case 'ci': ci = data as CIAggregate; break
+      case 'staleWork': staleWork = data as StaleWorkAggregate; break
+      case 'sessionUsage': sessionUsage = data as SessionUsageAggregate; break
+    }
+  }
+
+  if (!throughput || !staleWork) return null
+
+  return {
+    throughput,
+    cycleTime,
+    ci,
+    staleWork,
+    sessionUsage,
+    computedAt: staleWork.asOf,
+  }
+}
+
+export function hasNormalizedData(snapshotId: string): boolean {
+  const db = getDb()
+  const row = db.prepare(SQL.countNormalizedRowsForSnapshot).get({ snapshotId }) as Record<string, unknown> | undefined
+  if (!row) return false
+  const sourceTotal = Number(row.issues) + Number(row.pull_requests) + Number(row.workflow_runs) + Number(row.repositories) + Number(row.local_git)
+  if (sourceTotal > 0) return true
+  const aggRow = db.prepare(`SELECT COUNT(*) as count FROM aggregates WHERE snapshot_id = ?`).get(snapshotId) as { count: number }
+  return aggRow.count > 0
+}
+
+export function getNormalizedSnapshot(): MetricSnapshot | null {
+  const db = getDb()
+  const snapRow = db.prepare(SQL.getLatestSnapshotId).get() as { id?: string; captured_at?: string } | undefined
+  if (!snapRow?.id) return null
+
+  const snapshotId = snapRow.id
+  const capturedAt = snapRow.captured_at!
+
+  if (!hasNormalizedData(snapshotId)) return null
+
+  const aggregates = readAggregatesForSnapshot(snapshotId)
+  if (!aggregates) return null
+
+  const issues = readAllSourceIssues()
+  const pullRequests = readAllSourcePullRequests()
+  const workflowRuns = readAllSourceWorkflowRuns()
+  const sessions = readAllSourceSessions()
+  const repositories = readAllSourceRepositories()
+  const localGit = readAllSourceLocalGit()
+
+  const metadata = {
+    source: 'orchestrated' as const,
+    refreshDurationMs: 0,
+    partialData: false,
+    errors: [] as string[],
+  }
+
+  return {
+    id: snapshotId,
+    capturedAt,
+    issues,
+    pullRequests,
+    workflowRuns,
+    repositories,
+    sessions,
+    localGit,
+    errors: [],
+    aggregates,
+    metadata,
+  }
 }
 
 function getDb(): Db {
