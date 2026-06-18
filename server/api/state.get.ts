@@ -1,6 +1,5 @@
 import { defineEventHandler, getQuery, setHeader } from 'h3'
-import { initDb, getLatestState, getDailyMetricsRange } from '../db/client'
-import { computeDailyMetrics } from '../lib/daily-metrics'
+import { initDb, getLatestState, getDailyMetricsRange, getDailyMetricsRangeForRepo } from '../db/client'
 import { deriveCI, deriveCycleTime, deriveStaleWork } from '../lib/github/aggregates'
 import { buildDashboardWindow } from '../lib/dashboard-state'
 import { ALL_REPOS_REPO_KEY } from '../../types/daily-metrics'
@@ -51,13 +50,7 @@ export default defineEventHandler(async (event) => {
   const viewSnapshot = state.snapshot ? filterSnapshotForRepo(state.snapshot, repoKey) : null
   const dashboardRows = repoKey === ALL_REPOS_REPO_KEY
     ? getDailyMetricsRange(fromDay.toISOString().slice(0, 10), today)
-    : viewSnapshot
-      ? computeDailyMetrics(viewSnapshot).map(row => ({
-          ...row,
-          version: 1,
-          createdAt: viewSnapshot.capturedAt,
-        }))
-      : []
+    : getDailyMetricsRangeForRepo(fromDay.toISOString().slice(0, 10), today, repoKey)
 
   const dashboardWindow = buildDashboardWindow(
     dashboardRows,
