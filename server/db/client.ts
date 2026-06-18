@@ -1,4 +1,4 @@
-import initSqlJs, { type Database as SqlJsDatabase } from 'sql.js'
+import Database from 'better-sqlite3'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { SQL, SCHEMA_VERSION } from './schema'
@@ -7,7 +7,9 @@ import type { MetricSnapshot, SnapshotRow, LatestState, RefreshRunRecord, Refres
 import type { AggregateType } from '../../types/aggregates'
 import type { DailyMetricsInsert, DailyMetricsRow } from '../../types/daily-metrics'
 
-let _db: SqlJsDatabase | null = null
+export type Db = Database.Database
+
+let _db: Db | null = null
 
 function getDbDir(): string {
   return process.env['DB_DIR'] || join(process.cwd(), '.data')
@@ -52,9 +54,9 @@ function parseRefreshState(value: string | null): RefreshRunState {
 
 function saveRefreshState(state: RefreshRunState): void {
   const db = getDb()
-  db.run(SQL.upsertLatestState, {
-    '@key': REFRESH_STATE_KEY,
-    '@value': JSON.stringify({
+  db.prepare(SQL.upsertLatestState).run({
+    key: REFRESH_STATE_KEY,
+    value: JSON.stringify({
       ...state,
       runHistory: state.runHistory.slice(0, MAX_REFRESH_HISTORY),
     }),
@@ -129,44 +131,34 @@ function buildDiagnostics(state: RefreshRunState, snapshot: MetricSnapshot | nul
   }
 }
 
-export async function initDb(): Promise<SqlJsDatabase> {
-  if (_db) return _db
+function openDatabase(): Db {
   const dbDir = getDbDir()
   const dbPath = getDbPath()
-  if (!existsSync(dbDir)) {
-    mkdirSync(dbDir, { recursive: true })
-  }
-  const SQL = await initSqlJs()
-  if (existsSync(dbPath)) {
-    const buffer = readFileSync(dbPath)
-    _db = new SQL.Database(buffer)
-  } else {
-    _db = new SQL.Database()
-  }
+  if (!existsSync(dbDir)) mkdirSync(dbDir, { recursive: true })
+  const db = new Database(dbPath)
+  db.pragma('journal_mode = WAL')
+  db.pragma('foreign_keys = ON')
+  db.pragma('busy_timeout = 5000')
+  return db
+}
+
+export async function initDb(): Promise<Db> {
+  if (_db) return _db
+  _db = openDatabase()
   migrate(_db)
-  save()
   return _db
 }
 
-function migrate(db: SqlJsDatabase): void {
-  db.run(SQL.createTables)
-  const stmt = db.prepare(
-    `SELECT value FROM latest_state WHERE key = 'schema_version'`
-  )
-  const current = stmt.step() ? Number(stmt.getAsObject().value) : 0
-  stmt.free()
+function migrate(db: Db): void {
+  db.exec(SQL.createTables)
+  const row = db.prepare(`SELECT value FROM latest_state WHERE key = 'schema_version'`).get() as { value?: unknown } | undefined
+  const current = row ? Number(row.value) : 0
   if (current < SCHEMA_VERSION) {
     if (current < 3) {
-      db.run(SQL.createDailyMetricsV3)
-
-      const legacyStmt = db.prepare(
-        `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'daily_metrics' LIMIT 1`
-      )
-      const hasLegacyDailyMetrics = legacyStmt.step()
-      legacyStmt.free()
-
+      db.exec(SQL.createDailyMetricsV3)
+      const hasLegacyDailyMetrics = db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'daily_metrics' LIMIT 1`).get() != null
       if (hasLegacyDailyMetrics) {
-        db.run(`
+        db.exec(`
           INSERT INTO daily_metrics_v3 (
             day, repo_key, captured_at, source, version, reflects_complete_data,
             issues_opened, issues_closed, prs_created, prs_merged, total_commits,
@@ -186,72 +178,68 @@ function migrate(db: SqlJsDatabase): void {
             warnings, created_at
           FROM daily_metrics;
         `)
-        db.run('DROP TABLE daily_metrics;')
+        db.exec('DROP TABLE daily_metrics;')
       }
-
-      db.run(`
+      db.exec(`
         ALTER TABLE daily_metrics_v3 RENAME TO daily_metrics;
         CREATE INDEX IF NOT EXISTS idx_daily_metrics_repo_key
           ON daily_metrics(repo_key, day DESC);
       `)
     }
-    db.run(SQL.upsertLatestState, {
-      '@key': 'schema_version',
-      '@value': String(SCHEMA_VERSION),
+    db.prepare(SQL.upsertLatestState).run({
+      key: 'schema_version',
+      value: String(SCHEMA_VERSION),
     })
   }
 }
 
 export function save(): void {
-  if (!_db) return
-  const data = _db.export()
-  writeFileSync(getDbPath(), Buffer.from(data))
+  // better-sqlite3 writes directly to disk; no export step needed.
+  return
 }
 
 export function close(): void {
   if (_db) {
-    save()
     _db.close()
     _db = null
   }
 }
 
+function runWrite(sql: string, params: Record<string, unknown>): void {
+  const db = getDb()
+  const stmt = db.prepare(sql)
+  stmt.run(params)
+}
+
 export function insertSnapshot(snapshot: MetricSnapshot): void {
   const db = getDb()
-  db.run(SQL.insertSnapshot, {
-    '@id': snapshot.id,
-    '@capturedAt': snapshot.capturedAt,
-    '@data': JSON.stringify(snapshot),
-    '@version': SCHEMA_VERSION,
+  const transaction = db.transaction(() => {
+    db.prepare(SQL.insertSnapshot).run({
+      id: snapshot.id,
+      capturedAt: snapshot.capturedAt,
+      data: JSON.stringify(snapshot),
+      version: SCHEMA_VERSION,
+    })
+    db.prepare(SQL.upsertLatestState).run({
+      key: 'last_successful_refresh',
+      value: snapshot.capturedAt,
+    })
   })
-  db.run(SQL.upsertLatestState, {
-    '@key': 'last_successful_refresh',
-    '@value': snapshot.capturedAt,
-  })
-  save()
+  transaction()
 }
 
 export function getLatestSnapshot(): MetricSnapshot | null {
   const db = getDb()
   const stmt = db.prepare(SQL.getLatestSnapshot)
-  if (!stmt.step()) {
-    stmt.free()
-    return null
-  }
-  const row = stmt.getAsObject() as unknown as SnapshotRow
-  stmt.free()
+  const row = stmt.get() as { data?: string } | undefined
+  if (!row?.data) return null
   return JSON.parse(row.data) as MetricSnapshot
 }
 
 export function listSnapshots(limit = 10, offset = 0): SnapshotRow[] {
   const db = getDb()
   const stmt = db.prepare(SQL.listSnapshots)
-  stmt.bind({ '@limit': limit, '@offset': offset })
-  const rows: SnapshotRow[] = []
-  while (stmt.step()) {
-    rows.push(stmt.getAsObject() as unknown as SnapshotRow)
-  }
-  stmt.free()
+  const rows = stmt.all({ limit: limit, offset: offset }) as SnapshotRow[]
   return rows
 }
 
@@ -264,45 +252,35 @@ export function insertAggregate(
   snapshotId: string,
 ): void {
   const db = getDb()
-  db.run(SQL.insertAggregate, {
-    '@id': id,
-    '@type': type,
-    '@periodStart': periodStart,
-    '@periodEnd': periodEnd,
-    '@data': JSON.stringify(data),
-    '@snapshotId': snapshotId,
+  db.prepare(SQL.insertAggregate).run({
+    id: id,
+    type: type,
+    periodStart: periodStart,
+    periodEnd: periodEnd,
+    data: JSON.stringify(data),
+    snapshotId: snapshotId,
   })
-  save()
 }
 
 export function getAggregatesByType(type: AggregateType, limit = 10): unknown[] {
   const db = getDb()
   const stmt = db.prepare(SQL.getAggregatesByType)
-  stmt.bind({ '@type': type, '@limit': limit })
-  const results: unknown[] = []
-  while (stmt.step()) {
-    const row = stmt.getAsObject() as unknown as { data: string }
-    results.push(JSON.parse(row.data))
-  }
-  stmt.free()
-  return results
+  const results = stmt.all({ type: type, limit: limit }) as Array<{ data: string }>
+  return results.map(row => JSON.parse(row.data))
 }
 
 export function setRefreshInProgress(inProgress: boolean): void {
   const db = getDb()
-  db.run(SQL.upsertLatestState, {
-    '@key': 'refresh_in_progress',
-    '@value': inProgress ? 'true' : 'false',
+  db.prepare(SQL.upsertLatestState).run({
+    key: 'refresh_in_progress',
+    value: inProgress ? 'true' : 'false',
   })
-  save()
 }
 
 export function getRefreshInProgress(): boolean {
   const db = getDb()
-  const stmt = db.prepare(SQL.getLatestState)
-  stmt.bind({ '@key': 'refresh_in_progress' })
-  const result = stmt.step() ? String(stmt.getAsObject().value) : 'false'
-  stmt.free()
+  const row = db.prepare(SQL.getLatestState).get({ key: 'refresh_in_progress' }) as { value?: unknown } | undefined
+  const result = row ? String(row.value) : 'false'
   return result === 'true'
 }
 
@@ -310,17 +288,11 @@ export function getLatestState(): LatestState {
   const snapshot = getLatestSnapshot()
   const db = getDb()
 
-  const keyStmt = db.prepare(SQL.getLatestState)
-  keyStmt.bind({ '@key': 'last_successful_refresh' })
-  const lastRefresh = keyStmt.step() ? String(keyStmt.getAsObject().value) : null
-  keyStmt.free()
-
+  const lastRefreshRow = db.prepare(SQL.getLatestState).get({ key: 'last_successful_refresh' }) as { value?: unknown } | undefined
+  const lastRefresh = lastRefreshRow ? String(lastRefreshRow.value) : null
   const refreshInProgress = getRefreshInProgress()
-  const refreshStateStmt = db.prepare(SQL.getLatestState)
-  refreshStateStmt.bind({ '@key': REFRESH_STATE_KEY })
-  const refreshStateValue = refreshStateStmt.step() ? String(refreshStateStmt.getAsObject().value) : null
-  refreshStateStmt.free()
-  const refreshState = parseRefreshState(refreshStateValue)
+  const refreshStateRow = db.prepare(SQL.getLatestState).get({ key: REFRESH_STATE_KEY }) as { value?: string } | undefined
+  const refreshState = parseRefreshState(refreshStateRow?.value ?? null)
 
   const STALE_THRESHOLD_MS = 15 * 60 * 1000
   let isStale = true
@@ -386,43 +358,39 @@ export function setRefreshRunStatus(status: RefreshRunStatus, nextRunAt: string 
 
 export function getRefreshRunState(): RefreshRunState {
   const db = getDb()
-  const stmt = db.prepare(SQL.getLatestState)
-  stmt.bind({ '@key': REFRESH_STATE_KEY })
-  const value = stmt.step() ? String(stmt.getAsObject().value) : null
-  stmt.free()
-  return parseRefreshState(value)
+  const row = db.prepare(SQL.getLatestState).get({ key: REFRESH_STATE_KEY }) as { value?: string } | undefined
+  return parseRefreshState(row?.value ?? null)
 }
 
 export function upsertDailyMetrics(row: DailyMetricsInsert): void {
   const db = getDb()
-  db.run(SQL.upsertDailyMetrics, {
-    '@day': row.day,
-    '@repoKey': row.repoKey,
-    '@capturedAt': row.capturedAt,
-    '@source': row.source,
-    '@version': SCHEMA_VERSION,
-    '@reflectsCompleteData': row.reflectsCompleteData ? 1 : 0,
-    '@issuesOpened': row.issuesOpened,
-    '@issuesClosed': row.issuesClosed,
-    '@prsCreated': row.prsCreated,
-    '@prsMerged': row.prsMerged,
-    '@totalCommits': row.totalCommits,
-    '@avgCycleTimeDays': row.avgCycleTimeDays,
-    '@medianCycleTimeDays': row.medianCycleTimeDays,
-    '@p95CycleTimeDays': row.p95CycleTimeDays,
-    '@cycleTimeSampleSize': row.cycleTimeSampleSize,
-    '@ciTotalRuns': row.ciTotalRuns,
-    '@ciPassCount': row.ciPassCount,
-    '@ciFailCount': row.ciFailCount,
-    '@ciPassRate': row.ciPassRate,
-    '@ciAvgDurationMs': row.ciAvgDurationMs,
-    '@totalSessions': row.totalSessions,
-    '@sessionErrorCount': row.sessionErrorCount,
-    '@staleIssues': row.staleIssues,
-    '@stalePrs': row.stalePrs,
-    '@warnings': JSON.stringify(row.warnings),
+  db.prepare(SQL.upsertDailyMetrics).run({
+    day: row.day,
+    repoKey: row.repoKey,
+    capturedAt: row.capturedAt,
+    source: row.source,
+    version: SCHEMA_VERSION,
+    reflectsCompleteData: row.reflectsCompleteData ? 1 : 0,
+    issuesOpened: row.issuesOpened,
+    issuesClosed: row.issuesClosed,
+    prsCreated: row.prsCreated,
+    prsMerged: row.prsMerged,
+    totalCommits: row.totalCommits,
+    avgCycleTimeDays: row.avgCycleTimeDays,
+    medianCycleTimeDays: row.medianCycleTimeDays,
+    p95CycleTimeDays: row.p95CycleTimeDays,
+    cycleTimeSampleSize: row.cycleTimeSampleSize,
+    ciTotalRuns: row.ciTotalRuns,
+    ciPassCount: row.ciPassCount,
+    ciFailCount: row.ciFailCount,
+    ciPassRate: row.ciPassRate,
+    ciAvgDurationMs: row.ciAvgDurationMs,
+    totalSessions: row.totalSessions,
+    sessionErrorCount: row.sessionErrorCount,
+    staleIssues: row.staleIssues,
+    stalePrs: row.stalePrs,
+    warnings: JSON.stringify(row.warnings),
   })
-  save()
 }
 
 function rowToDailyMetrics(row: Record<string, unknown>): DailyMetricsRow {
@@ -463,40 +431,23 @@ export function getDailyMetricsRange(fromDay: string, toDay: string): DailyMetri
 export function getDailyMetricsRangeForRepo(fromDay: string, toDay: string, repoKey: string): DailyMetricsRow[] {
   const db = getDb()
   const stmt = db.prepare(SQL.getDailyMetricsRange)
-  stmt.bind({ '@fromDay': fromDay, '@toDay': toDay, '@repoKey': repoKey })
-  const rows: DailyMetricsRow[] = []
-  while (stmt.step()) {
-    rows.push(rowToDailyMetrics(stmt.getAsObject() as Record<string, unknown>))
-  }
-  stmt.free()
-  return rows
+  const rows = stmt.all({ fromDay, toDay, repoKey }) as Record<string, unknown>[]
+  return rows.map(rowToDailyMetrics)
 }
 
 export function getLatestDailyDay(): string | null {
   const db = getDb()
-  const stmt = db.prepare(`SELECT day FROM daily_metrics ORDER BY day DESC LIMIT 1;`)
-  const result = stmt.step() ? String(stmt.getAsObject().day) : null
-  stmt.free()
-  return result
+  const row = db.prepare(`SELECT day FROM daily_metrics ORDER BY day DESC LIMIT 1;`).get() as { day?: unknown } | undefined
+  return row ? String(row.day) : null
 }
 
 export function getLatestDailyDayForRepo(repoKey: string): string | null {
   const db = getDb()
-  const stmt = db.prepare(SQL.getLatestDailyDay)
-  stmt.bind({ '@repoKey': repoKey })
-  const result = stmt.step() ? String(stmt.getAsObject().day) : null
-  stmt.free()
-  return result
+  const row = db.prepare(`SELECT day FROM daily_metrics WHERE repo_key = ? ORDER BY day DESC LIMIT 1;`).get(repoKey) as { day?: unknown } | undefined
+  return row ? String(row.day) : null
 }
 
-export function prune(before: string): void {
-  const db = getDb()
-  db.run(SQL.deleteSnapshotsOlderThan, { '@before': before })
-  db.run(SQL.deleteAggregatesOlderThan, { '@before': before })
-  save()
-}
-
-function getDb(): SqlJsDatabase {
+function getDb(): Db {
   if (!_db) throw new Error('Database not initialized. Call initDb() first.')
   return _db
 }

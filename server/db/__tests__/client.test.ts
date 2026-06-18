@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { initDb, getLatestState, close, setRefreshRunState, getRefreshRunState } from '../client'
+import { initDb, getLatestState, close, setRefreshRunState, getRefreshRunState, getLatestSnapshot, insertSnapshot } from '../client'
 
 let tmpDir: string
 
@@ -20,7 +20,7 @@ describe('initDb on fresh database', () => {
   it('initializes and returns a valid db', async () => {
     const db = await initDb()
     expect(db).toBeTruthy()
-    expect(typeof db.run).toBe('function')
+    expect(typeof db.prepare).toBe('function')
   })
 
   it('getLatestState returns defaults on empty db', async () => {
@@ -106,5 +106,34 @@ describe('initDb on fresh database', () => {
     expect(runState.sourceHealth.localGit?.status).toBe('degraded')
     expect(runState.sourceHealth.localGit?.message).toContain('Discovery warnings')
     expect(runState.sourceHealth.localGit?.message).toContain('permission denied')
+  })
+
+  it('persists data on disk across close and reopen', async () => {
+    await initDb()
+    insertSnapshot({
+      id: 'snap-1',
+      capturedAt: '2026-06-18T12:00:00.000Z',
+      issues: [],
+      pullRequests: [],
+      workflowRuns: [],
+      repositories: [],
+      sessions: [],
+      localGit: [],
+      errors: [],
+      aggregates: {
+        throughput: { periodStart: '2026-06-18T00:00:00.000Z', periodEnd: '2026-06-18T12:00:00.000Z', issuesClosed: 0, issuesOpened: 0, prsMerged: 0, prsCreated: 0, totalCommits: 0 },
+        cycleTime: null,
+        ci: null,
+        staleWork: { asOf: '2026-06-18T12:00:00.000Z', staleIssues: 0, stalePRs: 0, staleThresholdDays: 14, oldestItemDays: null },
+        sessionUsage: null,
+        computedAt: '2026-06-18T12:00:00.000Z',
+      },
+      metadata: { source: 'orchestrated', refreshDurationMs: 1, partialData: false, errors: [] },
+    } as any)
+    close()
+
+    const reopened = await initDb()
+    expect(reopened).toBeTruthy()
+    expect(getLatestSnapshot()?.id).toBe('snap-1')
   })
 })

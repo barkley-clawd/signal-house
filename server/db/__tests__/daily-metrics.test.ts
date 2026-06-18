@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import initSqlJs from 'sql.js'
+import Database from 'better-sqlite3'
 import { initDb, upsertDailyMetrics, getDailyMetricsRange, getDailyMetricsRangeForRepo, getLatestDailyDay, getLatestDailyDayForRepo, close } from '../client'
 import type { DailyMetricsInsert } from '../../../types/daily-metrics'
 
@@ -201,9 +201,8 @@ describe('daily_metrics table', () => {
   })
 
   it('boots cleanly on existing database (schema migration)', async () => {
-    const SQL = await initSqlJs()
-    const legacyDb = new SQL.Database()
-    legacyDb.run(`
+    const legacyDb = new Database(join(tmpDir, 'metrics.db'))
+    legacyDb.exec(`
       CREATE TABLE snapshots (
         id TEXT PRIMARY KEY,
         captured_at TEXT NOT NULL,
@@ -261,13 +260,7 @@ describe('daily_metrics table', () => {
       INSERT INTO daily_metrics (day, captured_at, source, issues_opened, warnings)
       VALUES ('2026-06-01', '2026-06-01T12:00:00Z', 'legacy', 4, '["legacy"]');
     `)
-    const buffer = legacyDb.export()
     legacyDb.close()
-    rmSync(tmpDir, { recursive: true, force: true })
-    tmpDir = mkdtempSync(join(tmpdir(), 'daily-metrics-test-'))
-    process.env['DB_DIR'] = tmpDir
-    const { writeFileSync } = await import('node:fs')
-    writeFileSync(join(tmpDir, 'metrics.db'), Buffer.from(buffer))
 
     await initDb()
     const results = getDailyMetricsRange('2026-06-01', '2026-06-01')
