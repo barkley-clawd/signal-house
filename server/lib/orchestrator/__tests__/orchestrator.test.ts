@@ -3,9 +3,7 @@ import * as db from '../../../db/client'
 
 vi.mock('../../../db/client', () => ({
   initDb: vi.fn().mockResolvedValue(undefined),
-  insertSnapshot: vi.fn(),
-  insertAggregate: vi.fn(),
-  upsertDailyMetrics: vi.fn(),
+  persistSnapshot: vi.fn(),
   getLatestSnapshot: vi.fn().mockReturnValue(null),
 }))
 
@@ -42,7 +40,7 @@ describe('createOrchestrator', () => {
     expect(result.sources).toEqual([])
     expect(result.errors).toHaveLength(0)
     expect(result.partialData).toBe(false)
-    expect(db.insertSnapshot).toHaveBeenCalledTimes(1)
+    expect(db.persistSnapshot).toHaveBeenCalledTimes(1)
   })
 
   it('runs all configured collectors and merges data', async () => {
@@ -166,7 +164,7 @@ describe('createOrchestrator', () => {
     expect(result.errors).toHaveLength(0)
     expect(result.partialData).toBe(false)
 
-    const snapshotArg = vi.mocked(db.insertSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
+    const snapshotArg = vi.mocked(db.persistSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
     expect(snapshotArg.issues).toHaveLength(1)
     expect(snapshotArg.sessions).toHaveLength(3)
     expect(snapshotArg.localGit).toHaveLength(1)
@@ -261,7 +259,7 @@ describe('createOrchestrator', () => {
 
     await orchestrator.collect()
 
-    const snapshotArg = vi.mocked(db.insertSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
+    const snapshotArg = vi.mocked(db.persistSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
     expect(snapshotArg.issues).toHaveLength(2)
   })
 
@@ -399,7 +397,7 @@ describe('createOrchestrator', () => {
 
     expect(result.errors).toHaveLength(0)
 
-    const snapshotArg = vi.mocked(db.insertSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
+    const snapshotArg = vi.mocked(db.persistSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
     expect(snapshotArg.repositories).toHaveLength(1)
     expect(snapshotArg.repositories[0]).toMatchObject({
       repoKey: 'github:test/repo',
@@ -459,14 +457,10 @@ describe('createOrchestrator', () => {
     expect(result.errors).toHaveLength(0)
     expect(result.partialData).toBe(false)
 
-    const snapshotArg = vi.mocked(db.insertSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
+    const snapshotArg = vi.mocked(db.persistSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
     expect(snapshotArg.sessions).toHaveLength(2)
     expect(snapshotArg.aggregates.sessionUsage).not.toBeNull()
     expect(snapshotArg.aggregates.sessionUsage!.totalSessions).toBe(2)
-
-    const aggEntries = vi.mocked(db.insertAggregate).mock.calls
-    const sessionUsageEntry = aggEntries.find(e => e[1] === 'sessionUsage')
-    expect(sessionUsageEntry).toBeDefined()
   })
 
   it('preserves sessionUsage when only localGit and sessions configured', async () => {
@@ -539,7 +533,7 @@ describe('createOrchestrator', () => {
     expect(result.sources).toContain('sessions')
     expect(result.errors).toHaveLength(0)
 
-    const snapshotArg = vi.mocked(db.insertSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
+    const snapshotArg = vi.mocked(db.persistSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
     expect(snapshotArg.sessions).toHaveLength(1)
     expect(snapshotArg.localGit).toHaveLength(1)
     expect(snapshotArg.aggregates.sessionUsage).not.toBeNull()
@@ -667,7 +661,7 @@ describe('createOrchestrator', () => {
 
     await orchestrator.collect()
 
-    const snapshotArg = vi.mocked(db.insertSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
+    const snapshotArg = vi.mocked(db.persistSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
     expect(snapshotArg.workflowRuns).toHaveLength(2)
     expect(snapshotArg.workflowRuns[0]!.id).toBe('w1')
     expect(snapshotArg.workflowRuns[1]!.id).toBe('w2')
@@ -728,7 +722,7 @@ describe('createOrchestrator', () => {
     expect(result.errors).toContain('GitHub API rate limited')
     expect(result.partialData).toBe(true)
 
-    const snapshotArg = vi.mocked(db.insertSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
+    const snapshotArg = vi.mocked(db.persistSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
     expect(snapshotArg.metadata.errors).toContain('GitHub API rate limited')
     expect(snapshotArg.metadata.partialData).toBe(true)
   })
@@ -855,7 +849,7 @@ describe('createOrchestrator', () => {
     expect(result.errors).toHaveLength(0)
     expect(result.partialData).toBe(false)
 
-    const snapshotArg = vi.mocked(db.insertSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
+    const snapshotArg = vi.mocked(db.persistSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
     expect(snapshotArg.issues).toHaveLength(3)
     expect(snapshotArg.pullRequests).toHaveLength(3)
     expect(snapshotArg.workflowRuns).toHaveLength(2)

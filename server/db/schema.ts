@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 export const SQL = {
 
@@ -42,10 +42,135 @@ export const SQL = {
 
   `,
 
+  createSourceDataTables: `
+    CREATE TABLE IF NOT EXISTS source_issues (
+      id               TEXT NOT NULL,
+      last_snapshot_id TEXT NOT NULL,
+      title            TEXT NOT NULL,
+      state            TEXT NOT NULL,
+      created_at       TEXT NOT NULL,
+      updated_at       TEXT NOT NULL,
+      closed_at        TEXT,
+      repo             TEXT NOT NULL,
+      repo_key         TEXT NOT NULL,
+      labels           TEXT NOT NULL DEFAULT '[]',
+      assignee         TEXT,
+      milestone        TEXT,
+      url              TEXT NOT NULL,
+      PRIMARY KEY (id)
+    );
+
+    CREATE TABLE IF NOT EXISTS source_pull_requests (
+      id               TEXT NOT NULL,
+      last_snapshot_id TEXT NOT NULL,
+      title            TEXT NOT NULL,
+      state            TEXT NOT NULL,
+      created_at       TEXT NOT NULL,
+      updated_at       TEXT NOT NULL,
+      head_sha         TEXT,
+      merged_at        TEXT,
+      closed_at        TEXT,
+      repo             TEXT NOT NULL,
+      repo_key         TEXT NOT NULL,
+      author           TEXT NOT NULL,
+      labels           TEXT NOT NULL DEFAULT '[]',
+      additions        INTEGER,
+      deletions        INTEGER,
+      changed_files    INTEGER,
+      url              TEXT NOT NULL,
+      ci_status        TEXT,
+      PRIMARY KEY (id)
+    );
+
+    CREATE TABLE IF NOT EXISTS source_workflow_runs (
+      id               TEXT NOT NULL,
+      last_snapshot_id TEXT NOT NULL,
+      name             TEXT NOT NULL,
+      status           TEXT NOT NULL,
+      conclusion       TEXT,
+      created_at       TEXT NOT NULL,
+      completed_at     TEXT,
+      head_sha         TEXT,
+      repo             TEXT NOT NULL,
+      repo_key         TEXT NOT NULL,
+      branch           TEXT NOT NULL,
+      workflow_name    TEXT NOT NULL,
+      url              TEXT,
+      PRIMARY KEY (id)
+    );
+
+    CREATE TABLE IF NOT EXISTS source_sessions (
+      id               TEXT NOT NULL,
+      last_snapshot_id TEXT NOT NULL,
+      tool_name        TEXT NOT NULL,
+      action           TEXT NOT NULL,
+      timestamp        TEXT NOT NULL,
+      duration_ms      INTEGER,
+      success          INTEGER NOT NULL DEFAULT 1,
+      metadata         TEXT NOT NULL DEFAULT '{}',
+      PRIMARY KEY (id)
+    );
+
+    CREATE TABLE IF NOT EXISTS source_repositories (
+      repo_key       TEXT NOT NULL,
+      last_snapshot_id TEXT NOT NULL,
+      name           TEXT NOT NULL,
+      local_path     TEXT,
+      remote_url     TEXT,
+      github_owner   TEXT,
+      github_repo    TEXT,
+      source         TEXT NOT NULL DEFAULT 'github',
+      PRIMARY KEY (repo_key)
+    );
+
+    CREATE TABLE IF NOT EXISTS source_local_git (
+      repo_key         TEXT NOT NULL,
+      last_snapshot_id TEXT NOT NULL,
+      source           TEXT NOT NULL DEFAULT 'local',
+      path             TEXT NOT NULL,
+      repo_name        TEXT NOT NULL,
+      remote_url       TEXT,
+      github_owner     TEXT,
+      github_repo      TEXT,
+      default_branch   TEXT,
+      is_git_repo      INTEGER NOT NULL DEFAULT 1,
+      recent_commits   INTEGER NOT NULL DEFAULT 0,
+      authors          TEXT NOT NULL DEFAULT '[]',
+      latest_commit_at TEXT,
+      error            TEXT,
+      PRIMARY KEY (repo_key)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_source_issues_repo_key
+      ON source_issues(repo_key);
+    CREATE INDEX IF NOT EXISTS idx_source_issues_state
+      ON source_issues(state);
+    CREATE INDEX IF NOT EXISTS idx_source_pull_requests_repo_key
+      ON source_pull_requests(repo_key);
+    CREATE INDEX IF NOT EXISTS idx_source_pull_requests_state
+      ON source_pull_requests(state);
+    CREATE INDEX IF NOT EXISTS idx_source_workflow_runs_repo_key
+      ON source_workflow_runs(repo_key);
+    CREATE INDEX IF NOT EXISTS idx_source_workflow_runs_conclusion
+      ON source_workflow_runs(conclusion);
+    CREATE INDEX IF NOT EXISTS idx_source_sessions_timestamp
+      ON source_sessions(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_source_sessions_tool_name
+      ON source_sessions(tool_name);
+    CREATE INDEX IF NOT EXISTS idx_source_local_git_source
+      ON source_local_git(source);
+  `,
+
   dropTables: `
+    DROP TABLE IF EXISTS source_local_git;
+    DROP TABLE IF EXISTS source_repositories;
+    DROP TABLE IF EXISTS source_sessions;
+    DROP TABLE IF EXISTS source_workflow_runs;
+    DROP TABLE IF EXISTS source_pull_requests;
+    DROP TABLE IF EXISTS source_issues;
+    DROP TABLE IF EXISTS daily_metrics;
     DROP TABLE IF EXISTS aggregates;
     DROP TABLE IF EXISTS snapshots;
-    DROP TABLE IF EXISTS daily_metrics;
     DROP TABLE IF EXISTS latest_state;
   `,
 
@@ -86,6 +211,123 @@ export const SQL = {
 
     CREATE INDEX IF NOT EXISTS idx_latest_state_key
       ON latest_state(key);
+
+    CREATE TABLE IF NOT EXISTS source_issues (
+      id               TEXT NOT NULL,
+      last_snapshot_id TEXT NOT NULL,
+      title            TEXT NOT NULL,
+      state            TEXT NOT NULL,
+      created_at       TEXT NOT NULL,
+      updated_at       TEXT NOT NULL,
+      closed_at        TEXT,
+      repo             TEXT NOT NULL,
+      repo_key         TEXT NOT NULL,
+      labels           TEXT NOT NULL DEFAULT '[]',
+      assignee         TEXT,
+      milestone        TEXT,
+      url              TEXT NOT NULL,
+      PRIMARY KEY (id)
+    );
+
+    CREATE TABLE IF NOT EXISTS source_pull_requests (
+      id               TEXT NOT NULL,
+      last_snapshot_id TEXT NOT NULL,
+      title            TEXT NOT NULL,
+      state            TEXT NOT NULL,
+      created_at       TEXT NOT NULL,
+      updated_at       TEXT NOT NULL,
+      head_sha         TEXT,
+      merged_at        TEXT,
+      closed_at        TEXT,
+      repo             TEXT NOT NULL,
+      repo_key         TEXT NOT NULL,
+      author           TEXT NOT NULL,
+      labels           TEXT NOT NULL DEFAULT '[]',
+      additions        INTEGER,
+      deletions        INTEGER,
+      changed_files    INTEGER,
+      url              TEXT NOT NULL,
+      ci_status        TEXT,
+      PRIMARY KEY (id)
+    );
+
+    CREATE TABLE IF NOT EXISTS source_workflow_runs (
+      id               TEXT NOT NULL,
+      last_snapshot_id TEXT NOT NULL,
+      name             TEXT NOT NULL,
+      status           TEXT NOT NULL,
+      conclusion       TEXT,
+      created_at       TEXT NOT NULL,
+      completed_at     TEXT,
+      head_sha         TEXT,
+      repo             TEXT NOT NULL,
+      repo_key         TEXT NOT NULL,
+      branch           TEXT NOT NULL,
+      workflow_name    TEXT NOT NULL,
+      url              TEXT,
+      PRIMARY KEY (id)
+    );
+
+    CREATE TABLE IF NOT EXISTS source_sessions (
+      id               TEXT NOT NULL,
+      last_snapshot_id TEXT NOT NULL,
+      tool_name        TEXT NOT NULL,
+      action           TEXT NOT NULL,
+      timestamp        TEXT NOT NULL,
+      duration_ms      INTEGER,
+      success          INTEGER NOT NULL DEFAULT 1,
+      metadata         TEXT NOT NULL DEFAULT '{}',
+      PRIMARY KEY (id)
+    );
+
+    CREATE TABLE IF NOT EXISTS source_repositories (
+      repo_key         TEXT NOT NULL,
+      last_snapshot_id TEXT NOT NULL,
+      name             TEXT NOT NULL,
+      local_path       TEXT,
+      remote_url       TEXT,
+      github_owner     TEXT,
+      github_repo      TEXT,
+      source           TEXT NOT NULL DEFAULT 'github',
+      PRIMARY KEY (repo_key)
+    );
+
+    CREATE TABLE IF NOT EXISTS source_local_git (
+      repo_key         TEXT NOT NULL,
+      last_snapshot_id TEXT NOT NULL,
+      source           TEXT NOT NULL DEFAULT 'local',
+      path             TEXT NOT NULL,
+      repo_name        TEXT NOT NULL,
+      remote_url       TEXT,
+      github_owner     TEXT,
+      github_repo      TEXT,
+      default_branch   TEXT,
+      is_git_repo      INTEGER NOT NULL DEFAULT 1,
+      recent_commits   INTEGER NOT NULL DEFAULT 0,
+      authors          TEXT NOT NULL DEFAULT '[]',
+      latest_commit_at TEXT,
+      error            TEXT,
+      PRIMARY KEY (repo_key)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_source_issues_repo_key
+      ON source_issues(repo_key);
+    CREATE INDEX IF NOT EXISTS idx_source_issues_state
+      ON source_issues(state);
+    CREATE INDEX IF NOT EXISTS idx_source_pull_requests_repo_key
+      ON source_pull_requests(repo_key);
+    CREATE INDEX IF NOT EXISTS idx_source_pull_requests_state
+      ON source_pull_requests(state);
+    CREATE INDEX IF NOT EXISTS idx_source_workflow_runs_repo_key
+      ON source_workflow_runs(repo_key);
+    CREATE INDEX IF NOT EXISTS idx_source_workflow_runs_conclusion
+      ON source_workflow_runs(conclusion);
+    CREATE INDEX IF NOT EXISTS idx_source_sessions_timestamp
+      ON source_sessions(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_source_sessions_tool_name
+      ON source_sessions(tool_name);
+    CREATE INDEX IF NOT EXISTS idx_source_local_git_source
+      ON source_local_git(source);
   `,
 
   createDailyMetricsV3: `
@@ -234,6 +476,97 @@ export const SQL = {
     WHERE repo_key = COALESCE(@repoKey, repo_key)
     ORDER BY day DESC
     LIMIT 1;
+  `,
+
+  upsertIssue: `
+    INSERT INTO source_issues (id, last_snapshot_id, title, state, created_at, updated_at, closed_at, repo, repo_key, labels, assignee, milestone, url)
+    VALUES (@id, @snapshotId, @title, @state, @createdAt, @updatedAt, @closedAt, @repo, @repoKey, @labels, @assignee, @milestone, @url)
+    ON CONFLICT(id) DO UPDATE SET
+      last_snapshot_id = excluded.last_snapshot_id,
+      title = excluded.title,
+      state = excluded.state,
+      updated_at = excluded.updated_at,
+      closed_at = excluded.closed_at,
+      labels = excluded.labels,
+      assignee = excluded.assignee,
+      milestone = excluded.milestone;
+  `,
+
+  upsertPullRequest: `
+    INSERT INTO source_pull_requests (id, last_snapshot_id, title, state, created_at, updated_at, head_sha, merged_at, closed_at, repo, repo_key, author, labels, additions, deletions, changed_files, url, ci_status)
+    VALUES (@id, @snapshotId, @title, @state, @createdAt, @updatedAt, @headSha, @mergedAt, @closedAt, @repo, @repoKey, @author, @labels, @additions, @deletions, @changedFiles, @url, @ciStatus)
+    ON CONFLICT(id) DO UPDATE SET
+      last_snapshot_id = excluded.last_snapshot_id,
+      title = excluded.title,
+      state = excluded.state,
+      updated_at = excluded.updated_at,
+      head_sha = excluded.head_sha,
+      merged_at = excluded.merged_at,
+      closed_at = excluded.closed_at,
+      author = excluded.author,
+      labels = excluded.labels,
+      additions = excluded.additions,
+      deletions = excluded.deletions,
+      changed_files = excluded.changed_files,
+      ci_status = excluded.ci_status;
+  `,
+
+  upsertWorkflowRun: `
+    INSERT INTO source_workflow_runs (id, last_snapshot_id, name, status, conclusion, created_at, completed_at, head_sha, repo, repo_key, branch, workflow_name, url)
+    VALUES (@id, @snapshotId, @name, @status, @conclusion, @createdAt, @completedAt, @headSha, @repo, @repoKey, @branch, @workflowName, @url)
+    ON CONFLICT(id) DO UPDATE SET
+      last_snapshot_id = excluded.last_snapshot_id,
+      name = excluded.name,
+      status = excluded.status,
+      conclusion = excluded.conclusion,
+      completed_at = excluded.completed_at,
+      branch = excluded.branch,
+      url = excluded.url;
+  `,
+
+  upsertSession: `
+    INSERT INTO source_sessions (id, last_snapshot_id, tool_name, action, timestamp, duration_ms, success, metadata)
+    VALUES (@id, @snapshotId, @toolName, @action, @timestamp, @durationMs, @success, @metadata)
+    ON CONFLICT(id) DO UPDATE SET
+      last_snapshot_id = excluded.last_snapshot_id,
+      tool_name = excluded.tool_name,
+      action = excluded.action,
+      timestamp = excluded.timestamp,
+      duration_ms = excluded.duration_ms,
+      success = excluded.success,
+      metadata = excluded.metadata;
+  `,
+
+  upsertRepository: `
+    INSERT INTO source_repositories (repo_key, last_snapshot_id, name, local_path, remote_url, github_owner, github_repo, source)
+    VALUES (@repoKey, @snapshotId, @name, @localPath, @remoteUrl, @githubOwner, @githubRepo, @source)
+    ON CONFLICT(repo_key) DO UPDATE SET
+      last_snapshot_id = excluded.last_snapshot_id,
+      name = excluded.name,
+      local_path = excluded.local_path,
+      remote_url = excluded.remote_url,
+      github_owner = excluded.github_owner,
+      github_repo = excluded.github_repo,
+      source = excluded.source;
+  `,
+
+  upsertLocalGitRepo: `
+    INSERT INTO source_local_git (repo_key, last_snapshot_id, source, path, repo_name, remote_url, github_owner, github_repo, default_branch, is_git_repo, recent_commits, authors, latest_commit_at, error)
+    VALUES (@repoKey, @snapshotId, @source, @path, @repoName, @remoteUrl, @githubOwner, @githubRepo, @defaultBranch, @isGitRepo, @recentCommits, @authors, @latestCommitAt, @error)
+    ON CONFLICT(repo_key) DO UPDATE SET
+      last_snapshot_id = excluded.last_snapshot_id,
+      source = excluded.source,
+      path = excluded.path,
+      repo_name = excluded.repo_name,
+      remote_url = excluded.remote_url,
+      github_owner = excluded.github_owner,
+      github_repo = excluded.github_repo,
+      default_branch = excluded.default_branch,
+      is_git_repo = excluded.is_git_repo,
+      recent_commits = excluded.recent_commits,
+      authors = excluded.authors,
+      latest_commit_at = excluded.latest_commit_at,
+      error = excluded.error;
   `,
 
 }

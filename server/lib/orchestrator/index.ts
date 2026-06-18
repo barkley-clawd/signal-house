@@ -2,8 +2,7 @@ import { createCollector as createGitHubCollector, collectWithConcurrency } from
 import { createLocalGitCollector } from '../git/collector'
 import { createSessionCollector } from '../sessions/collector'
 import { deriveAll } from '../github/aggregates'
-import { initDb, insertSnapshot, insertAggregate, getLatestSnapshot, upsertDailyMetrics } from '../../db/client'
-import { computeDailyMetrics } from '../daily-metrics'
+import { initDb, persistSnapshot, getLatestSnapshot } from '../../db/client'
 import { randomUUID } from 'node:crypto'
 import { getRuntimeConfig } from '../runtime-config'
 import type { GitHubCollectorConfig } from '../github/types'
@@ -11,7 +10,7 @@ import type { LocalGitCollectorConfig, LocalGitRepoInfo } from '../git/types'
 import type { SessionCollectorConfig } from '../sessions/types'
 import type { OrchestratorConfig, OrchestratorResult } from './types'
 import type { MetricSnapshot } from '../../../types/snapshot'
-import type { DashboardAggregates, AggregateType } from '../../../types/aggregates'
+import type { DashboardAggregates } from '../../../types/aggregates'
 import type {
   IssueMetric,
   PullRequestMetric,
@@ -244,36 +243,7 @@ export function createOrchestrator(config: OrchestratorConfig) {
 
       try {
         await initDb()
-        insertSnapshot(snapshot)
-
-        const aggEntries: Array<{ type: AggregateType; data: unknown }> = [
-          { type: 'throughput', data: aggregates.throughput },
-          { type: 'cycleTime', data: aggregates.cycleTime },
-          { type: 'ci', data: aggregates.ci },
-          { type: 'staleWork', data: aggregates.staleWork },
-        ]
-
-        if (aggregates.sessionUsage) {
-          aggEntries.push({ type: 'sessionUsage', data: aggregates.sessionUsage })
-        }
-
-        for (const { type, data } of aggEntries) {
-          if (data !== null) {
-            insertAggregate(
-              `${type}-${capturedAt}`,
-              type,
-              aggregates.throughput.periodStart,
-              aggregates.throughput.periodEnd,
-              data,
-              snapshotId,
-            )
-          }
-        }
-
-        const dailyRows = computeDailyMetrics(snapshot)
-        for (const row of dailyRows) {
-          upsertDailyMetrics(row)
-        }
+        persistSnapshot(snapshot)
       } catch (err) {
         allErrors.push(`Failed to persist snapshot: ${err instanceof Error ? err.message : String(err)}`)
       }

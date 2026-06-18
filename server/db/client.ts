@@ -7,6 +7,7 @@ import { getRefreshHistoryLimit, getStaleThresholdMs } from '../lib/runtime-conf
 import type { MetricSnapshot, SnapshotRow, LatestState, RefreshRunRecord, RefreshRunState, RefreshSourceHealth, RefreshRunStatus, SourceDiagnostics } from '../../types/snapshot'
 import type { AggregateType } from '../../types/aggregates'
 import type { DailyMetricsInsert, DailyMetricsRow } from '../../types/daily-metrics'
+import { computeDailyMetrics } from '../lib/daily-metrics'
 
 export type Db = Database.Database
 
@@ -151,12 +152,14 @@ export async function initDb(): Promise<Db> {
 
 function migrate(db: Db): void {
   db.exec(SQL.createTables)
+  db.exec(SQL.createSourceDataTables)
   const row = db.prepare(`SELECT value FROM latest_state WHERE key = 'schema_version'`).get() as { value?: unknown } | undefined
   const current = row ? Number(row.value) : 0
   if (current >= SCHEMA_VERSION) return
 
   db.exec(SQL.dropTables)
   db.exec(SQL.createTables)
+  db.exec(SQL.createSourceDataTables)
   db.exec(SQL.createDailyMetricsV3)
   db.exec(`
     ALTER TABLE daily_metrics_v3 RENAME TO daily_metrics;
@@ -421,6 +424,215 @@ export function getLatestDailyDayForRepo(repoKey: string): string | null {
   const db = getDb()
   const row = db.prepare(`SELECT day FROM daily_metrics WHERE repo_key = ? ORDER BY day DESC LIMIT 1;`).get(repoKey) as { day?: unknown } | undefined
   return row ? String(row.day) : null
+}
+
+// ── Normalized source data write helpers ──────────────────────────
+
+function upsertIssuesFromSnapshot(snapshot: MetricSnapshot): void {
+  if (snapshot.issues.length === 0) return
+  const db = getDb()
+  const stmt = db.prepare(SQL.upsertIssue)
+  for (const issue of snapshot.issues) {
+    stmt.run({
+      id: issue.id,
+      snapshotId: snapshot.id,
+      title: issue.title,
+      state: issue.state,
+      createdAt: issue.createdAt,
+      updatedAt: issue.updatedAt,
+      closedAt: issue.closedAt,
+      repo: issue.repo,
+      repoKey: issue.repoKey,
+      labels: JSON.stringify(issue.labels),
+      assignee: issue.assignee,
+      milestone: issue.milestone,
+      url: issue.url,
+    })
+  }
+}
+
+function upsertPullRequestsFromSnapshot(snapshot: MetricSnapshot): void {
+  if (snapshot.pullRequests.length === 0) return
+  const db = getDb()
+  const stmt = db.prepare(SQL.upsertPullRequest)
+  for (const pr of snapshot.pullRequests) {
+    stmt.run({
+      id: pr.id,
+      snapshotId: snapshot.id,
+      title: pr.title,
+      state: pr.state,
+      createdAt: pr.createdAt,
+      updatedAt: pr.updatedAt,
+      headSha: pr.headSha,
+      mergedAt: pr.mergedAt,
+      closedAt: pr.closedAt,
+      repo: pr.repo,
+      repoKey: pr.repoKey,
+      author: pr.author,
+      labels: JSON.stringify(pr.labels),
+      additions: pr.additions,
+      deletions: pr.deletions,
+      changedFiles: pr.changedFiles,
+      url: pr.url,
+      ciStatus: pr.ciStatus,
+    })
+  }
+}
+
+function upsertWorkflowRunsFromSnapshot(snapshot: MetricSnapshot): void {
+  if (snapshot.workflowRuns.length === 0) return
+  const db = getDb()
+  const stmt = db.prepare(SQL.upsertWorkflowRun)
+  for (const run of snapshot.workflowRuns) {
+    stmt.run({
+      id: run.id,
+      snapshotId: snapshot.id,
+      name: run.name,
+      status: run.status,
+      conclusion: run.conclusion,
+      createdAt: run.createdAt,
+      completedAt: run.completedAt,
+      headSha: run.headSha,
+      repo: run.repo,
+      repoKey: run.repoKey,
+      branch: run.branch,
+      workflowName: run.workflowName,
+      url: run.url,
+    })
+  }
+}
+
+function upsertSessionsFromSnapshot(snapshot: MetricSnapshot): void {
+  if (snapshot.sessions.length === 0) return
+  const db = getDb()
+  const stmt = db.prepare(SQL.upsertSession)
+  for (const session of snapshot.sessions) {
+    stmt.run({
+      id: session.id,
+      snapshotId: snapshot.id,
+      toolName: session.toolName,
+      action: session.action,
+      timestamp: session.timestamp,
+      durationMs: session.durationMs,
+      success: session.success ? 1 : 0,
+      metadata: JSON.stringify(session.metadata),
+    })
+  }
+}
+
+function upsertRepositoriesFromSnapshot(snapshot: MetricSnapshot): void {
+  if (snapshot.repositories.length === 0) return
+  const db = getDb()
+  const stmt = db.prepare(SQL.upsertRepository)
+  for (const repo of snapshot.repositories) {
+    stmt.run({
+      repoKey: repo.repoKey,
+      snapshotId: snapshot.id,
+      name: repo.name,
+      localPath: repo.localPath,
+      remoteUrl: repo.remoteUrl,
+      githubOwner: repo.githubOwner,
+      githubRepo: repo.githubRepo,
+      source: repo.source,
+    })
+  }
+}
+
+function upsertLocalGitReposFromSnapshot(snapshot: MetricSnapshot): void {
+  if (snapshot.localGit.length === 0) return
+  const db = getDb()
+  const stmt = db.prepare(SQL.upsertLocalGitRepo)
+  for (const repo of snapshot.localGit) {
+    stmt.run({
+      repoKey: repo.repoKey,
+      snapshotId: snapshot.id,
+      source: repo.source,
+      path: repo.path,
+      repoName: repo.repoName,
+      remoteUrl: repo.remoteUrl,
+      githubOwner: repo.githubOwner,
+      githubRepo: repo.githubRepo,
+      defaultBranch: repo.defaultBranch,
+      isGitRepo: repo.isGitRepo ? 1 : 0,
+      recentCommits: repo.recentCommits,
+      authors: JSON.stringify(repo.authors),
+      latestCommitAt: repo.latestCommitAt,
+      error: repo.error,
+    })
+  }
+}
+
+function upsertAggregatesFromSnapshot(snapshot: MetricSnapshot): void {
+  const aggEntries: Array<{ type: AggregateType; data: unknown }> = [
+    { type: 'throughput', data: snapshot.aggregates.throughput },
+    { type: 'cycleTime', data: snapshot.aggregates.cycleTime },
+    { type: 'ci', data: snapshot.aggregates.ci },
+    { type: 'staleWork', data: snapshot.aggregates.staleWork },
+  ]
+  if (snapshot.aggregates.sessionUsage) {
+    aggEntries.push({ type: 'sessionUsage', data: snapshot.aggregates.sessionUsage })
+  }
+  for (const { type, data } of aggEntries) {
+    if (data !== null) {
+      insertAggregate(
+        `${type}-${snapshot.capturedAt}`,
+        type,
+        snapshot.aggregates.throughput.periodStart,
+        snapshot.aggregates.throughput.periodEnd,
+        data,
+        snapshot.id,
+      )
+    }
+  }
+}
+
+function upsertDailyMetricsFromSnapshot(snapshot: MetricSnapshot): void {
+  const dailyRows = computeDailyMetrics(snapshot)
+  for (const row of dailyRows) {
+    upsertDailyMetrics(row)
+  }
+}
+
+// ── Transactional persistence ──────────────────────────────────────
+
+/**
+ * Persist a snapshot and all derived data in a single transaction.
+ * If any step fails, the entire transaction rolls back, preserving
+ * the previous good dashboard state.
+ *
+ * Writes the blob snapshot (existing cache/read path), normalized
+ * source data rows, aggregates, and daily metrics.
+ */
+export function persistSnapshot(snapshot: MetricSnapshot): void {
+  const db = getDb()
+  const transaction = db.transaction(() => {
+    // 1. Write blob snapshot (existing cache/read path)
+    db.prepare(SQL.insertSnapshot).run({
+      id: snapshot.id,
+      capturedAt: snapshot.capturedAt,
+      data: JSON.stringify(snapshot),
+      version: SCHEMA_VERSION,
+    })
+    db.prepare(SQL.upsertLatestState).run({
+      key: 'last_successful_refresh',
+      value: snapshot.capturedAt,
+    })
+
+    // 2. Write aggregates
+    upsertAggregatesFromSnapshot(snapshot)
+
+    // 3. Write normalized source data rows
+    upsertIssuesFromSnapshot(snapshot)
+    upsertPullRequestsFromSnapshot(snapshot)
+    upsertWorkflowRunsFromSnapshot(snapshot)
+    upsertSessionsFromSnapshot(snapshot)
+    upsertRepositoriesFromSnapshot(snapshot)
+    upsertLocalGitReposFromSnapshot(snapshot)
+
+    // 4. Write daily metrics
+    upsertDailyMetricsFromSnapshot(snapshot)
+  })
+  transaction()
 }
 
 function getDb(): Db {
