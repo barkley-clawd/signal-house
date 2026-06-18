@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 import type { SessionUsageAggregate } from '../../../types/aggregates'
+import { getSessionPeriodDays } from '../runtime-config'
 import type { SessionCollectorConfig, SessionCollectorResult } from './types'
 
 type SessionExport = {
@@ -134,7 +135,7 @@ function analyzeSessionExport(data: SessionExport): {
 }
 
 export function createSessionCollector(config: SessionCollectorConfig = {}) {
-  const periodDays = config.periodDays ?? 30
+  const periodDays = config.periodDays ?? getSessionPeriodDays()
 
   return {
     async collect(): Promise<SessionCollectorResult> {

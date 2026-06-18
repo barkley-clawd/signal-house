@@ -2,10 +2,10 @@ import { execSync } from 'node:child_process'
 import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { parseGithubOriginRemote } from '../git/remotes'
+import { getDiscoveryMaxDepth } from '../runtime-config'
 import type { RepoDiscoveryConfig, RepoDiscoveryRepo, RepoDiscoveryResult, RepoDiscoveryWarning } from '../git/types'
 
 const DEFAULT_EXCLUDES = new Set(['node_modules', '.git'])
-const DEFAULT_MAX_DEPTH = 3
 
 function matchesGlob(name: string, patterns: string[]): boolean {
   if (patterns.length === 0) return true
@@ -117,7 +117,7 @@ function walk(
 export function discoverGitRepos(config: RepoDiscoveryConfig): RepoDiscoveryResult {
   const roots = config.roots ?? []
   const globs = config.globs ?? []
-  const maxDepth = config.maxDepth ?? DEFAULT_MAX_DEPTH
+  const maxDepth = config.maxDepth ?? getDiscoveryMaxDepth()
   const excludes = new Set([...DEFAULT_EXCLUDES, ...(config.excludes ?? [])])
   const warnings: RepoDiscoveryWarning[] = []
   const found: RepoDiscoveryRepo[] = []

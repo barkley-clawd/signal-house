@@ -2,6 +2,7 @@ import { initDb, setRefreshInProgress, getRefreshInProgress, setRefreshRunState,
 import { createOrchestrator } from '../orchestrator'
 import { getEnv } from '../env'
 import { discoverGitRepos } from '../discovery/discovery'
+import { getRuntimeConfig } from '../runtime-config'
 import type { OrchestratorConfig, OrchestratorResult } from '../orchestrator/types'
 import type { SessionCollectorConfig } from '../sessions/types'
 import type { RepoDiscoveryConfig, RepoDiscoveryRepo, LocalGitRepoConfig } from '../git/types'
@@ -22,6 +23,7 @@ export interface RefreshRunResult {
 }
 
 export function buildRefreshConfig(env: NodeJS.ProcessEnv = process.env): OrchestratorConfig {
+  const runtimeConfig = getRuntimeConfig(env)
   const config: OrchestratorConfig = {}
   const discoveryWarnings: string[] = []
   const githubConfigs: NonNullable<OrchestratorConfig['github']> = []
@@ -79,6 +81,8 @@ export function buildRefreshConfig(env: NodeJS.ProcessEnv = process.env): Orches
         } else {
           console.warn(`[signal-house] Invalid GIT_DISCOVERY_MAX_DEPTH: "${maxDepthRaw}" — must be a non-negative integer. Ignoring.`)
         }
+      } else {
+        discoveryConfig.maxDepth = runtimeConfig.discovery.maxDepth
       }
       if (excludesRaw) {
         discoveryConfig.excludes = excludesRaw.split(',').map(e => e.trim()).filter(Boolean)
@@ -129,13 +133,7 @@ export function buildRefreshConfig(env: NodeJS.ProcessEnv = process.env): Orches
   }
 
   const sessionsConfig: SessionCollectorConfig = {}
-  const sessionsPeriodDays = getEnv(env, 'SECRET_HOUSE_SESSIONS_PERIOD_DAYS', 'SESSIONS_PERIOD_DAYS')
-  if (sessionsPeriodDays) {
-    const days = Number.parseInt(sessionsPeriodDays, 10)
-    if (!Number.isNaN(days) && days > 0) {
-      sessionsConfig.periodDays = days
-    }
-  }
+  sessionsConfig.periodDays = runtimeConfig.sessions.periodDays
   const opencodeBin = getEnv(env, 'SECRET_HOUSE_OPENCODE_BIN', 'OPENCODE_BIN')
   if (opencodeBin) {
     sessionsConfig.opencodeBin = opencodeBin

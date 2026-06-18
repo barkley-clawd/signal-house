@@ -163,6 +163,8 @@ ipconfig getifaddr en0
 
 Create a `.env` file in the project root.
 
+Runtime defaults are centralized in `server/lib/runtime-config.ts`, which is the source of truth for poller, dashboard, database refresh history, discovery, orchestrator, and session-collector defaults.
+
 ```bash
 SECRET_HOUSE_GITHUB_TOKEN=ghp_your_token_here
 SECRET_HOUSE_GITHUB_OWNER=your-org-or-user

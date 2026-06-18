@@ -5,6 +5,7 @@ import { deriveAll } from '../github/aggregates'
 import { initDb, insertSnapshot, insertAggregate, getLatestSnapshot, upsertDailyMetrics } from '../../db/client'
 import { computeDailyMetrics } from '../daily-metrics'
 import { randomUUID } from 'node:crypto'
+import { getRuntimeConfig } from '../runtime-config'
 import type { GitHubCollectorConfig } from '../github/types'
 import type { LocalGitCollectorConfig, LocalGitRepoInfo } from '../git/types'
 import type { SessionCollectorConfig } from '../sessions/types'
@@ -101,11 +102,13 @@ export function createOrchestrator(config: OrchestratorConfig) {
       let aggregates: DashboardAggregates | null = null
       let sessionUsageFromCollector: import('../../../types/aggregates').SessionUsageAggregate | null = null
 
+      const runtimeConfig = getRuntimeConfig()
+
       // 1. GitHub collector
       if (config.github && config.github.length > 0) {
         sources.push('github')
         try {
-          const ghResults = await collectWithConcurrency(config.github, 3, async ghConfig => {
+          const ghResults = await collectWithConcurrency(config.github, runtimeConfig.orchestrator.collectConcurrency, async ghConfig => {
             const ghCollector = createGitHubCollector({
               ...ghConfig,
               skipPersist: true,
@@ -168,7 +171,7 @@ export function createOrchestrator(config: OrchestratorConfig) {
       }
 
       if (config.github && config.github.length > 0) {
-        const deriveConfig = { staleThresholdDays: 14, lookbackDays: 30 }
+        const deriveConfig = { staleThresholdDays: runtimeConfig.orchestrator.staleThresholdDays, lookbackDays: runtimeConfig.orchestrator.githubLookbackDays }
         aggregates = deriveAll(issues, pullRequests, workflowRuns, deriveConfig)
         aggregates.throughput.totalCommits = localGit.reduce((sum, r) => sum + r.recentCommits, 0)
       }
@@ -177,7 +180,7 @@ export function createOrchestrator(config: OrchestratorConfig) {
         const now = new Date()
         aggregates = {
           throughput: {
-            periodStart: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+            periodStart: new Date(now.getTime() - runtimeConfig.orchestrator.githubLookbackDays * 24 * 60 * 60 * 1000).toISOString(),
             periodEnd: capturedAt,
             issuesClosed: 0,
             issuesOpened: 0,
@@ -191,7 +194,7 @@ export function createOrchestrator(config: OrchestratorConfig) {
             asOf: capturedAt,
             staleIssues: 0,
             stalePRs: 0,
-            staleThresholdDays: 14,
+            staleThresholdDays: runtimeConfig.orchestrator.staleThresholdDays,
             oldestItemDays: null,
           },
           sessionUsage: sessionUsageFromCollector,

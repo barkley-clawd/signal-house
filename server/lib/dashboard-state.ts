@@ -13,8 +13,7 @@ import type {
 } from '../../types/snapshot'
 import type { SessionUsageAggregate } from '../../types/aggregates'
 import { getEnv } from './env'
-
-const WINDOW_DAYS = 28
+import { getDashboardWindowDays } from './runtime-config'
 
 function toUtcDay(value: Date): string {
   return value.toISOString().slice(0, 10)
@@ -30,7 +29,7 @@ function addUtcDays(day: string, offset: number): string {
   return toUtcDay(date)
 }
 
-function buildUtcDays(endDay: string, windowDays = WINDOW_DAYS): string[] {
+function buildUtcDays(endDay: string, windowDays = getDashboardWindowDays()): string[] {
   const start = parseUtcDay(addUtcDays(endDay, -(windowDays - 1)))
   const days: string[] = []
   const current = new Date(start)
@@ -341,7 +340,7 @@ function buildCoverage(rows: DailyMetricsRow[], missingDays: string[], warnings:
   const hasSourceWarnings = warnings.length > 0
 
   return {
-    totalDays: WINDOW_DAYS,
+    totalDays: getDashboardWindowDays(),
     daysWithData,
     missingDays: missingDays.length,
     hasGaps: missingDays.length > 0,
@@ -357,7 +356,7 @@ export function buildDashboardWindow(
   sessionUsageAggregate: SessionUsageAggregate | null = null,
 ): DashboardWindow {
   const endDay = toUtcDay(now)
-  const days = buildUtcDays(endDay)
+  const days = buildUtcDays(endDay, getDashboardWindowDays())
   const rowsByDay = new Map(rows.map(row => [row.day, row]))
   const windowRows = days.map((day): DashboardWindowDay => {
     const metrics = rowsByDay.get(day) ?? null
@@ -376,7 +375,7 @@ export function buildDashboardWindow(
   const missingDays = windowRows.filter(point => point.isGap).map(point => point.day)
   const warnings = unique([
     ...rowWarnings,
-    ...(missingDays.length > 0 ? [`Missing ${missingDays.length} of ${WINDOW_DAYS} days in the rolling window`] : []),
+    ...(missingDays.length > 0 ? [`Missing ${missingDays.length} of ${getDashboardWindowDays()} days in the rolling window`] : []),
   ])
 
   const throughput = buildThroughputSummary(presentRows)

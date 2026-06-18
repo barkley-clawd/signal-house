@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { SQL, SCHEMA_VERSION } from './schema'
 import { getBooleanEnv, getEnv } from '../lib/env'
+import { getRefreshHistoryLimit, getStaleThresholdMs } from '../lib/runtime-config'
 import type { MetricSnapshot, SnapshotRow, LatestState, RefreshRunRecord, RefreshRunState, RefreshSourceHealth, RefreshRunStatus, SourceDiagnostics } from '../../types/snapshot'
 import type { AggregateType } from '../../types/aggregates'
 import type { DailyMetricsInsert, DailyMetricsRow } from '../../types/daily-metrics'
@@ -18,7 +19,6 @@ function getDbPath(): string {
 }
 
 const REFRESH_STATE_KEY = 'refresh_state'
-const MAX_REFRESH_HISTORY = 10
 
 function emptyRefreshState(): RefreshRunState {
   return {
@@ -43,7 +43,7 @@ function parseRefreshState(value: string | null): RefreshRunState {
       ...emptyRefreshState(),
       ...parsed,
       sourceHealth: parsed.sourceHealth ?? {},
-      runHistory: Array.isArray(parsed.runHistory) ? parsed.runHistory.slice(0, MAX_REFRESH_HISTORY) as RefreshRunRecord[] : [],
+      runHistory: Array.isArray(parsed.runHistory) ? parsed.runHistory.slice(0, getRefreshHistoryLimit()) as RefreshRunRecord[] : [],
     }
   } catch {
     return emptyRefreshState()
@@ -56,7 +56,7 @@ function saveRefreshState(state: RefreshRunState): void {
     '@key': REFRESH_STATE_KEY,
     '@value': JSON.stringify({
       ...state,
-      runHistory: state.runHistory.slice(0, MAX_REFRESH_HISTORY),
+      runHistory: state.runHistory.slice(0, getRefreshHistoryLimit()),
     }),
   })
   save()
@@ -322,7 +322,7 @@ export function getLatestState(): LatestState {
   refreshStateStmt.free()
   const refreshState = parseRefreshState(refreshStateValue)
 
-  const STALE_THRESHOLD_MS = 15 * 60 * 1000
+  const STALE_THRESHOLD_MS = getStaleThresholdMs()
   let isStale = true
   let staleReason: string | null = 'no successful refresh has completed yet'
   if (lastRefresh) {
@@ -369,7 +369,7 @@ export function setRefreshRunState(record: RefreshRunRecord): void {
       record.errorSummary,
       record.warnings ?? [],
     ),
-    runHistory: [record, ...previous.runHistory].slice(0, MAX_REFRESH_HISTORY),
+    runHistory: [record, ...previous.runHistory].slice(0, getRefreshHistoryLimit()),
   }
 
   saveRefreshState(nextState)

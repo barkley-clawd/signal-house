@@ -1,5 +1,5 @@
 import { runRefresh } from './refresh/run-refresh'
-import { getBooleanEnv, getEnv } from './env'
+import { getPollerConfig as getRuntimePollerConfig } from './runtime-config'
 
 export interface PollerConfig {
   enabled: boolean
@@ -12,27 +12,15 @@ export interface PollerRuntime {
   stop: () => void
 }
 
-const MIN_INTERVAL_SECONDS = 15
-const MAX_INTERVAL_SECONDS = 3600
-const DEFAULT_INTERVAL_SECONDS = 300
-const DEFAULT_STARTUP_DELAY_SECONDS = 5
 const POLLER_GUARD_KEY = Symbol.for('signal-house.metrics-poller')
 
-function parseSeconds(value: string | undefined, fallback: number): number {
-  const parsed = value ? Number.parseInt(value, 10) : Number.NaN
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
-}
-
 export function getPollerConfig(env: NodeJS.ProcessEnv = process.env): PollerConfig {
-  const enabled = getBooleanEnv(env, 'SECRET_HOUSE_POLLER_ENABLED', 'METRICS_POLLER_ENABLED')
-  const intervalSeconds = parseSeconds(getEnv(env, 'SECRET_HOUSE_POLL_INTERVAL_SECONDS', 'METRICS_POLL_INTERVAL_SECONDS'), DEFAULT_INTERVAL_SECONDS)
-  const startupDelaySeconds = parseSeconds(getEnv(env, 'SECRET_HOUSE_POLL_STARTUP_DELAY_SECONDS', 'METRICS_POLL_STARTUP_DELAY_SECONDS'), DEFAULT_STARTUP_DELAY_SECONDS)
-
+  const config = getRuntimePollerConfig(env)
   return {
-    enabled,
-    intervalMs: Math.min(MAX_INTERVAL_SECONDS, Math.max(MIN_INTERVAL_SECONDS, intervalSeconds)) * 1000,
-    runOnStartup: getEnv(env, 'SECRET_HOUSE_RUN_ON_STARTUP', 'METRICS_RUN_ON_STARTUP') !== 'false',
-    startupDelayMs: Math.max(0, startupDelaySeconds) * 1000,
+    enabled: config.enabled,
+    intervalMs: config.intervalMs,
+    runOnStartup: config.runOnStartup,
+    startupDelayMs: config.startupDelayMs,
   }
 }
 
