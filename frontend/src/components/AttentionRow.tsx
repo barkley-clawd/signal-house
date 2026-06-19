@@ -61,14 +61,18 @@ function AttentionRow({
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter") openLink()
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault()
+      openLink()
+    }
   }
 
   return (
     <div
+      aria-label={`${kind === "issue" ? "Issue" : "Pull request"}: ${title}${number != null ? ` #${number}` : ""}, ${priorityTier}, ${ageDays} days old`}
       className={cn(
         "group flex flex-col gap-1 rounded-lg px-3 py-2 text-sm transition-colors",
-        "bg-card-bg hover:bg-card-hover cursor-pointer",
+        "bg-card-bg hover:bg-card-hover cursor-pointer min-h-11",
         "focus-visible:ring-ring focus-visible:ring-[3px] focus-visible:outline-none"
       )}
       tabIndex={0}

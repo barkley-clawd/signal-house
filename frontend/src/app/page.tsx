@@ -143,7 +143,7 @@ function TestChart() {
     };
   }, []);
 
-  return <div ref={chartRef} className="h-64 w-full" />;
+  return <div ref={chartRef} className="h-64 w-full" role="img" aria-label="Bar chart showing sample activity over the past week" />;
 }
 
 export default function Home() {
@@ -227,16 +227,18 @@ export default function Home() {
   const showErrorBanner = manualRefreshStatus === "failed" && manualRefreshErrorTimestamp !== null && now - manualRefreshErrorTimestamp < 8000;
 
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-8">
-      <header className="mb-8">
-        <h1
-          className="text-3xl font-bold tracking-tight text-text-primary"
-          style={{ fontFamily: "var(--font-heading)" }}
-        >
-          Signal House
-        </h1>
-        <p className="mt-2 text-text-secondary">Developer activity dashboard scaffold</p>
-      </header>
+    <main id="main-content" className="container mx-auto max-w-6xl px-4 py-8">
+      <nav aria-label="Dashboard controls">
+        <header className="mb-8">
+          <h1
+            className="text-3xl font-bold tracking-tight text-text-primary"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            Signal House
+          </h1>
+          <p className="mt-2 text-text-secondary">Developer activity dashboard scaffold</p>
+        </header>
+      </nav>
 
       <StatusStrip />
 
@@ -244,6 +246,7 @@ export default function Home() {
         {showErrorBanner && (
           <motion.div
             key="error-banner"
+            role="alert"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -257,7 +260,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => clearManualRefreshError()}
-                className="text-xs"
+                className="text-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none rounded px-1.5 py-0.5"
                 style={{ color: "var(--color-text-muted)" }}
               >
                 Dismiss
@@ -267,7 +270,7 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <section aria-label="Repository and status" className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card className="border-card-border bg-card-bg transition-colors hover:bg-card-hover">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-text-primary">
@@ -276,7 +279,7 @@ export default function Home() {
                 {selectedRepoKey}
               </Badge>
             </CardTitle>
-            <CardDescription className="text-text-muted">Current repository context</CardDescription>
+            <CardDescription>Current repository context</CardDescription>
           </CardHeader>
           <CardContent>
             <SectionState
@@ -294,7 +297,7 @@ export default function Home() {
         <Card className="border-card-border bg-card-bg transition-colors hover:bg-card-hover">
           <CardHeader>
             <CardTitle className="text-text-primary">Status</CardTitle>
-            <CardDescription className="text-text-muted">System health overview</CardDescription>
+            <CardDescription>System health overview</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex items-center justify-between">
@@ -312,7 +315,7 @@ export default function Home() {
         <Card className="border-card-border bg-card-bg transition-colors hover:bg-card-hover">
           <CardHeader>
             <CardTitle className="text-text-primary">Actions</CardTitle>
-            <CardDescription className="text-text-muted">Dashboard controls</CardDescription>
+            <CardDescription>Dashboard controls</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             <Button
@@ -334,13 +337,13 @@ export default function Home() {
             </Button>
           </CardContent>
         </Card>
-      </div>
+      </section>
 
-      <div className="mt-6">
+      <section aria-label="Health summary" className="mt-6">
         <Card className="border-card-border bg-card-bg">
           <CardHeader>
             <CardTitle className="text-text-primary">Health Summary</CardTitle>
-            <CardDescription className="text-text-muted">Key metrics at a glance</CardDescription>
+            <CardDescription>Key metrics at a glance</CardDescription>
           </CardHeader>
           <CardContent>
             <SectionState
@@ -361,13 +364,13 @@ export default function Home() {
             </SectionState>
           </CardContent>
         </Card>
-      </div>
+      </section>
 
-      <div className="mt-6">
+      <section aria-label="Trend chart" className="mt-6">
         <Card className="border-card-border bg-card-bg">
           <CardHeader>
             <CardTitle className="text-text-primary">Trend Chart</CardTitle>
-            <CardDescription className="text-text-muted">Activity over time</CardDescription>
+            <CardDescription>Activity over time</CardDescription>
           </CardHeader>
           <CardContent>
             <SectionState
@@ -381,20 +384,20 @@ export default function Home() {
             </SectionState>
           </CardContent>
         </Card>
-      </div>
+      </section>
 
-      <div className="mt-6">
+      <section aria-label="Attention queue" className="mt-6">
         <Card className="border-card-border bg-card-bg">
           <CardHeader>
             <CardTitle className="text-text-primary">Attention Queue</CardTitle>
-            <CardDescription className="text-text-muted">
+            <CardDescription>
               Simple filters and sort modes for stale and blocked work
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap gap-3">
-                <div className="flex gap-1 rounded-lg bg-card-hover p-1">
+                <div className="flex gap-2 rounded-lg bg-card-hover p-2" role="group" aria-label="Type filter">
                   {typeOptions.map((opt) => (
                     <Badge
                       key={opt.value}
@@ -402,6 +405,7 @@ export default function Home() {
                       className={cn("cursor-pointer px-3 py-1", typeFilter === opt.value ? "text-primary-foreground" : "text-text-secondary")}
                       role="button"
                       tabIndex={0}
+                      aria-pressed={typeFilter === opt.value}
                       onClick={() => setTypeFilter(opt.value)}
                       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setTypeFilter(opt.value)}
                     >
@@ -410,7 +414,7 @@ export default function Home() {
                   ))}
                 </div>
 
-                <div className="flex gap-1 rounded-lg bg-card-hover p-1">
+                <div className="flex gap-2 rounded-lg bg-card-hover p-2" role="group" aria-label="Condition filter">
                   {conditionOptions.map((opt) => (
                     <Badge
                       key={opt.value}
@@ -418,6 +422,7 @@ export default function Home() {
                       className={cn("cursor-pointer px-3 py-1", conditionFilter === opt.value ? "text-primary-foreground" : "text-text-secondary")}
                       role="button"
                       tabIndex={0}
+                      aria-pressed={conditionFilter === opt.value}
                       onClick={() => setConditionFilter(opt.value)}
                       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setConditionFilter(opt.value)}
                     >
@@ -426,7 +431,7 @@ export default function Home() {
                   ))}
                 </div>
 
-                <div className="flex gap-1 rounded-lg bg-card-hover p-1">
+                <div className="flex gap-2 rounded-lg bg-card-hover p-2" role="group" aria-label="Sort mode">
                   {sortOptions.map((opt) => (
                     <Badge
                       key={opt.value}
@@ -434,6 +439,7 @@ export default function Home() {
                       className={cn("cursor-pointer px-3 py-1", sortMode === opt.value ? "text-primary-foreground" : "text-text-secondary")}
                       role="button"
                       tabIndex={0}
+                      aria-pressed={sortMode === opt.value}
                       onClick={() => setSortMode(opt.value)}
                       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setSortMode(opt.value)}
                     >
@@ -465,6 +471,7 @@ export default function Home() {
                     <div
                       key={item.id}
                       className="flex flex-col gap-2 rounded-lg border border-card-border bg-card-bg px-4 py-3 transition-colors hover:bg-card-hover md:flex-row md:items-center md:justify-between"
+                      aria-label={`${item.kind === "issue" ? "Issue" : "Pull request"}: ${item.title}, ${item.ageDays} days old, status: ${item.statusLabel}`}
                     >
                       <div className="min-w-0 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -486,11 +493,11 @@ export default function Home() {
             </SectionState>
           </CardContent>
         </Card>
-      </div>
+      </section>
 
       <footer className="mt-8 text-center text-sm text-text-muted">
         <p>Scaffold complete. Tailwind v4 + shadcn/ui + ECharts + Zustand</p>
       </footer>
-    </div>
+    </main>
   );
 }

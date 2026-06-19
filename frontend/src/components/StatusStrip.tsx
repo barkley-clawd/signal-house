@@ -88,6 +88,9 @@ export function StatusStrip() {
 
   return (
     <motion.div
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
       className="flex items-center justify-center gap-2 rounded-lg px-4 py-1.5 text-xs"
       style={{
         backgroundColor: "var(--color-card-bg)",
@@ -115,10 +118,15 @@ export function StatusStrip() {
         style={dotStyle}
       />
       <span style={{ color: "var(--color-text-muted)" }}>
-        Updated: {timeAgo}
-        {isRefreshingNow && ` \u00B7 ${statusText}`}
-        {isError && ` \u00B7 ${statusText}`}
-        {!isRefreshingNow && !isError && ` \u00B7 ${statusText}`}
+        <span className="sr-only">
+          {isRefreshingNow ? "Refreshing" : isError ? "Error" : statusText}
+        </span>
+        <span aria-hidden="true">
+          Updated: {timeAgo}
+          {isRefreshingNow && ` \u00B7 ${statusText}`}
+          {isError && ` \u00B7 ${statusText}`}
+          {!isRefreshingNow && !isError && ` \u00B7 ${statusText}`}
+        </span>
       </span>
     </motion.div>
   );
