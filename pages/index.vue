@@ -34,83 +34,70 @@
       </div>
     </div>
 
-    <UiCard v-if="stateData" class="service-status" title="Service Status">
-      <div class="service-status__grid">
-        <div class="service-status__item">
-          <span class="service-status__label">Current state</span>
-          <span class="service-status__value" :class="`service-status__value--${serviceStateTone}`">{{ serviceStateLabel }}</span>
+    <div v-if="stateData" class="top-rail">
+      <UiCard class="service-status top-rail__primary" title="Service Status">
+        <div class="service-status__grid">
+          <div class="service-status__item">
+            <span class="service-status__label">Current state</span>
+            <span class="service-status__value" :class="`service-status__value--${serviceStateTone}`">{{ serviceStateLabel }}</span>
+          </div>
+          <div class="service-status__item">
+            <span class="service-status__label">Last updated</span>
+            <span class="service-status__value">{{ lastRefresh ?? 'No data yet' }}</span>
+          </div>
+          <div class="service-status__item">
+            <span class="service-status__label">Next refresh</span>
+            <span class="service-status__value">{{ nextRefreshLabel }}</span>
+          </div>
+          <div class="service-status__item">
+            <span class="service-status__label">Poller</span>
+            <span class="service-status__value">{{ stateData.pollerEnabled ? 'Enabled' : 'Disabled' }}</span>
+          </div>
         </div>
-        <div class="service-status__item">
-          <span class="service-status__label">Last updated</span>
-          <span class="service-status__value">{{ lastRefresh ?? 'No data yet' }}</span>
+        <p v-if="statusMessage" class="service-status__message">{{ statusMessage }}</p>
+        <div v-if="sourceHealthEntries.length" class="source-health">
+          <span v-for="entry in sourceHealthEntries" :key="entry.name" class="source-health__pill" :class="`source-health__pill--${entry.status}`">
+            {{ entry.name }}: {{ entry.status }}
+          </span>
         </div>
-        <div class="service-status__item">
-          <span class="service-status__label">Next refresh</span>
-          <span class="service-status__value">{{ nextRefreshLabel }}</span>
-        </div>
-        <div class="service-status__item">
-          <span class="service-status__label">Poller</span>
-          <span class="service-status__value">{{ stateData.pollerEnabled ? 'Enabled' : 'Disabled' }}</span>
-        </div>
-      </div>
-      <p v-if="statusMessage" class="service-status__message">{{ statusMessage }}</p>
-      <div v-if="sourceHealthEntries.length" class="source-health">
-        <span v-for="entry in sourceHealthEntries" :key="entry.name" class="source-health__pill" :class="`source-health__pill--${entry.status}`">
-          {{ entry.name }}: {{ entry.status }}
-        </span>
-      </div>
-    </UiCard>
+      </UiCard>
 
-    <UiCard v-if="diagnostics" class="diagnostics" title="Source Diagnostics">
-      <div class="diagnostics__grid">
-        <div class="diagnostics__block">
-          <h3>Config</h3>
-          <p><strong>Project roots:</strong> {{ diagnostics.configuredProjectRoots.length ? diagnostics.configuredProjectRoots.join(', ') : 'None configured' }}</p>
-          <p><strong>Poller:</strong> {{ diagnostics.pollerEnabled ? `Enabled · every ${diagnostics.pollerIntervalSeconds ?? 'unknown'}s` : 'Disabled' }}</p>
-          <p><strong>Cache age:</strong> {{ diagnostics.cacheAgeSeconds == null ? 'Unknown' : `${diagnostics.cacheAgeSeconds}s` }}</p>
-        </div>
+      <UiCard v-if="diagnostics" class="diagnostics top-rail__secondary" title="Source Diagnostics">
+        <div class="diagnostics__grid">
+          <div class="diagnostics__block">
+            <h3>Config</h3>
+            <p><strong>Project roots:</strong> {{ diagnostics.configuredProjectRoots.length ? diagnostics.configuredProjectRoots.join(', ') : 'None configured' }}</p>
+            <p><strong>Poller:</strong> {{ diagnostics.pollerEnabled ? `Enabled · every ${diagnostics.pollerIntervalSeconds ?? 'unknown'}s` : 'Disabled' }}</p>
+            <p><strong>Cache age:</strong> {{ diagnostics.cacheAgeSeconds == null ? 'Unknown' : `${diagnostics.cacheAgeSeconds}s` }}</p>
+          </div>
 
-        <div class="diagnostics__block">
-          <h3>Repos</h3>
-          <p><strong>Discovered:</strong> {{ diagnostics.discoveredRepos.length }}</p>
-          <p><strong>GitHub remotes:</strong> {{ diagnostics.parsedGitHubRemotes.length }}</p>
-          <p><strong>Targets:</strong> {{ diagnostics.collectionTargets.length ? diagnostics.collectionTargets.join(', ') : 'None' }}</p>
+          <div class="diagnostics__block">
+            <h3>Repos</h3>
+            <p><strong>Discovered:</strong> {{ diagnostics.discoveredRepos.length }}</p>
+            <p><strong>GitHub remotes:</strong> {{ diagnostics.parsedGitHubRemotes.length }}</p>
+            <p><strong>Targets:</strong> {{ diagnostics.collectionTargets.length ? diagnostics.collectionTargets.join(', ') : 'None' }}</p>
+          </div>
         </div>
-
-        <div class="diagnostics__block">
-          <h3>Health</h3>
-          <p><strong>Last success:</strong> {{ diagnostics.lastSuccessfulRefreshAt ? new Date(diagnostics.lastSuccessfulRefreshAt).toLocaleString() : 'None' }}</p>
-          <p><strong>Last error:</strong> {{ diagnostics.lastError ?? 'None' }}</p>
-          <p><strong>Source states:</strong> see pills above</p>
+        <div v-if="diagnostics.skippedPaths.length" class="diagnostics__warnings">
+          <h3>Skipped paths and warnings</h3>
+          <ul>
+            <li v-for="warning in diagnostics.skippedPaths" :key="`${warning.path}:${warning.message}`">
+              <strong>{{ warning.path }}:</strong> {{ warning.message }}
+            </li>
+          </ul>
         </div>
-      </div>
-      <div v-if="diagnostics.skippedPaths.length" class="diagnostics__warnings">
-        <h3>Skipped paths and warnings</h3>
-        <ul>
-          <li v-for="warning in diagnostics.skippedPaths" :key="`${warning.path}:${warning.message}`">
-            <strong>{{ warning.path }}:</strong> {{ warning.message }}
-          </li>
-        </ul>
-      </div>
-      <div v-if="diagnostics.discoveredRepos.length" class="diagnostics__repos">
-        <h3>Discovered repos</h3>
-        <ul>
-          <li v-for="repo in diagnostics.discoveredRepos" :key="repo.repoKey">
-            <strong>{{ repo.name }}</strong> · {{ repo.path ?? 'unknown path' }} · {{ repo.remoteUrl ?? 'no remote' }}
-          </li>
-        </ul>
-      </div>
-    </UiCard>
+      </UiCard>
 
-    <!-- Coverage / window info -->
-    <div v-if="coverage && !loading && !error" class="coverage-row">
-      <svg class="coverage-row__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <rect x="3" y="3" width="18" height="18" rx="2" />
-        <path d="M9 12l2 2 4-4" />
-      </svg>
-      <span v-if="coverage.isComplete" class="coverage-ok">{{ coverage.daysWithData }}/{{ coverage.totalDays }} days</span>
-      <span v-else class="coverage-gap">{{ coverage.daysWithData }}/{{ coverage.totalDays }} days{{ coverage.hasGaps ? ' · ' + coverage.missingDays + ' missing' : '' }}</span>
-      <span v-if="coverage.hasSourceWarnings" class="coverage-gap">· source warnings</span>
+      <!-- Coverage / window info -->
+      <div v-if="coverage && !loading && !error" class="coverage-row">
+        <svg class="coverage-row__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M9 12l2 2 4-4" />
+        </svg>
+        <span v-if="coverage.isComplete" class="coverage-ok">{{ coverage.daysWithData }}/{{ coverage.totalDays }} days</span>
+        <span v-else class="coverage-gap">{{ coverage.daysWithData }}/{{ coverage.totalDays }} days{{ coverage.hasGaps ? ' · ' + coverage.missingDays + ' missing' : '' }}</span>
+        <span v-if="coverage.hasSourceWarnings" class="coverage-gap">· source warnings</span>
+      </div>
     </div>
 
     <!-- Error state (initial load) -->
@@ -175,7 +162,7 @@
       </div>
 
       <div class="sections">
-        <div class="section section-large section-summary">
+        <div class="section section-summary">
           <SummaryCards
             :throughput="cards?.throughput ?? null"
             :cycle-time="cards?.cycleTime ?? null"
@@ -186,7 +173,7 @@
           />
         </div>
 
-        <div class="section section-large section-session">
+        <div class="section section-session">
           <SessionUsageSection :session-usage="dashboardWindow?.sessionUsage ?? null" />
         </div>
 
@@ -220,7 +207,7 @@
           </UiCard>
         </div>
 
-        <div class="section section-large section-table">
+        <div class="section section-table">
           <UiCard title="Stale or Blocked Work">
             <StaleWorkTable
               :issues="displaySnapshot?.issues ?? []"
@@ -460,8 +447,16 @@ async function pollForRefreshComplete(timeoutMs = 60000, intervalMs = 2000): Pro
   box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.15);
 }
 
-.service-status {
+.top-rail {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.top-rail__primary,
+.top-rail__secondary {
+  margin-bottom: 0;
 }
 
 .service-status__grid {
@@ -665,16 +660,12 @@ async function pollForRefreshComplete(timeoutMs = 60000, intervalMs = 2000): Pro
   min-height: 0;
 }
 
-.section-large {
-  grid-column: span 12;
-}
-
 .section-summary {
-  grid-column: span 12;
+  grid-column: span 6;
 }
 
 .section-session {
-  grid-column: span 12;
+  grid-column: span 6;
 }
 
 .section-chart {
@@ -722,12 +713,20 @@ async function pollForRefreshComplete(timeoutMs = 60000, intervalMs = 2000): Pro
 }
 
 @media (max-width: 1100px) {
+  .top-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .section-summary,
+  .section-session,
   .section-chart {
     grid-column: span 6;
   }
 }
 
 @media (max-width: 768px) {
+  .section-summary,
+  .section-session,
   .section-chart {
     grid-column: span 12;
   }
