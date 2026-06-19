@@ -824,6 +824,15 @@ export function hasNormalizedData(snapshotId: string): boolean {
 }
 
 export function getNormalizedSnapshot(): MetricSnapshot | null {
+  return getNormalizedSnapshotForRepo('all')
+}
+
+function filterByRepoKey<T extends { repoKey: string }>(rows: T[], repoKey: string): T[] {
+  if (repoKey === 'all') return rows
+  return rows.filter(row => row.repoKey === repoKey)
+}
+
+export function getNormalizedSnapshotForRepo(repoKey: string): MetricSnapshot | null {
   const db = getDb()
   const snapRow = db.prepare(SQL.getLatestSnapshotId).get() as { id?: string; captured_at?: string } | undefined
   if (!snapRow?.id) return null
@@ -836,12 +845,12 @@ export function getNormalizedSnapshot(): MetricSnapshot | null {
   const aggregates = readAggregatesForSnapshot(snapshotId)
   if (!aggregates) return null
 
-  const issues = readAllSourceIssues()
-  const pullRequests = readAllSourcePullRequests()
-  const workflowRuns = readAllSourceWorkflowRuns()
+  const issues = filterByRepoKey(readAllSourceIssues(), repoKey)
+  const pullRequests = filterByRepoKey(readAllSourcePullRequests(), repoKey)
+  const workflowRuns = filterByRepoKey(readAllSourceWorkflowRuns(), repoKey)
   const sessions = readAllSourceSessions()
-  const repositories = readAllSourceRepositories()
-  const localGit = readAllSourceLocalGit()
+  const repositories = filterByRepoKey(readAllSourceRepositories(), repoKey)
+  const localGit = filterByRepoKey(readAllSourceLocalGit(), repoKey)
 
   const metadata = {
     source: 'orchestrated' as const,

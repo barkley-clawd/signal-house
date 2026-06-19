@@ -1,36 +1,7 @@
 import { defineEventHandler, getQuery, setHeader } from 'h3'
-import { initDb, getLatestState, getDailyMetricsRange, getDailyMetricsRangeForRepo } from '../db/client'
-import { deriveCI, deriveCycleTime, deriveStaleWork } from '../lib/github/aggregates'
+import { initDb, getLatestState, getDailyMetricsRange, getDailyMetricsRangeForRepo, getNormalizedSnapshotForRepo } from '../db/client'
 import { buildDashboardWindow } from '../lib/dashboard-state'
 import { ALL_REPOS_REPO_KEY } from '../../types/daily-metrics'
-import type { MetricSnapshot } from '../../types/snapshot'
-
-function filterSnapshotForRepo(snapshot: MetricSnapshot, repoKey: string): MetricSnapshot {
-  if (repoKey === ALL_REPOS_REPO_KEY) return snapshot
-
-  const issues = snapshot.issues.filter(item => item.repoKey === repoKey)
-  const pullRequests = snapshot.pullRequests.filter(item => item.repoKey === repoKey)
-  const workflowRuns = snapshot.workflowRuns.filter(item => item.repoKey === repoKey)
-  const repositories = snapshot.repositories.filter(item => item.repoKey === repoKey)
-  const localGit = snapshot.localGit.filter(item => item.repoKey === repoKey)
-  const periodStart = snapshot.aggregates.throughput.periodStart
-  const periodEnd = snapshot.aggregates.throughput.periodEnd
-
-  return {
-    ...snapshot,
-    issues,
-    pullRequests,
-    workflowRuns,
-    repositories,
-    localGit,
-    aggregates: {
-      ...snapshot.aggregates,
-      cycleTime: deriveCycleTime(pullRequests, periodStart, periodEnd),
-      ci: deriveCI(workflowRuns, periodStart, periodEnd),
-      staleWork: deriveStaleWork(issues, pullRequests, snapshot.aggregates.staleWork.staleThresholdDays, snapshot.capturedAt),
-    },
-  }
-}
 
 export default defineEventHandler(async (event) => {
   await initDb()
@@ -47,7 +18,7 @@ export default defineEventHandler(async (event) => {
   const fromDay = new Date(`${today}T00:00:00Z`)
   fromDay.setUTCDate(fromDay.getUTCDate() - 27)
 
-  const viewSnapshot = state.snapshot ? filterSnapshotForRepo(state.snapshot, repoKey) : null
+  const viewSnapshot = getNormalizedSnapshotForRepo(repoKey)
   const dashboardRows = repoKey === ALL_REPOS_REPO_KEY
     ? getDailyMetricsRange(fromDay.toISOString().slice(0, 10), today)
     : getDailyMetricsRangeForRepo(fromDay.toISOString().slice(0, 10), today, repoKey)

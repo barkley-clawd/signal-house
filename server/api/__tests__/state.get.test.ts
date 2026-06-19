@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   mockGetLatestState: vi.fn(),
   mockGetDailyMetricsRange: vi.fn(),
   mockGetDailyMetricsRangeForRepo: vi.fn(),
+  mockGetNormalizedSnapshotForRepo: vi.fn(),
 }))
 
 vi.mock('h3', () => ({
@@ -20,6 +21,7 @@ vi.mock('../../db/client', () => ({
   getLatestState: mocks.mockGetLatestState,
   getDailyMetricsRange: mocks.mockGetDailyMetricsRange,
   getDailyMetricsRangeForRepo: mocks.mockGetDailyMetricsRangeForRepo,
+  getNormalizedSnapshotForRepo: mocks.mockGetNormalizedSnapshotForRepo,
 }))
 
 import handler from '../state.get'
@@ -58,6 +60,7 @@ describe('GET /api/state', () => {
     })
     mocks.mockGetDailyMetricsRange.mockReturnValue([])
     mocks.mockGetDailyMetricsRangeForRepo.mockReturnValue([])
+    mocks.mockGetNormalizedSnapshotForRepo.mockReturnValue(null)
   })
 
   afterEach(() => {
@@ -895,6 +898,13 @@ describe('GET /api/state', () => {
     })
 
     mocks.mockGetQuery.mockReturnValue({ repoKey: 'github:demo/repo-a' })
+    mocks.mockGetNormalizedSnapshotForRepo.mockReturnValue({
+      aggregates: { sessionUsage: null },
+      issues: [
+        { repoKey: 'github:demo/repo-a' },
+      ],
+    } as any)
+
     mocks.mockGetDailyMetricsRangeForRepo.mockReturnValue([
       {
         day: '2026-06-14',
