@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { fetchState } from "@/lib/api-client";
+import { fetchState, fetchDiagnostics } from "@/lib/api-client";
+import type { SourceDiagnostics } from "@/types";
 
 export interface DashboardState {
   data: unknown | null;
@@ -16,9 +17,15 @@ export interface DashboardState {
   lastPollTimestamp: string | null;
 
   fetch: (repoKey?: string) => Promise<void>;
+  diagnostics: SourceDiagnostics | null;
+  diagnosticsLoading: boolean;
+  diagnosticsError: string | null;
+  diagnosticsHasLoaded: boolean;
+
   manualRefresh: () => Promise<void>;
   triggerAutoRefresh: () => Promise<void>;
   clearManualRefreshError: () => void;
+  loadDiagnostics: () => Promise<void>;
 }
 
 export const useDashboardStore = create<DashboardState>((set, get) => ({
@@ -34,6 +41,10 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   manualRefreshStatus: "idle",
   manualRefreshErrorTimestamp: null,
   lastPollTimestamp: null,
+  diagnostics: null,
+  diagnosticsLoading: false,
+  diagnosticsError: null,
+  diagnosticsHasLoaded: false,
 
   fetch: async (repoKey) => {
     const state = get();
@@ -49,6 +60,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     try {
       const data = await fetchState(repo);
       const stateData = data as Record<string, unknown>;
+      const diagnostics = (stateData.diagnostics as SourceDiagnostics | undefined) ?? null;
       set({
         data,
         isLoading: false,
@@ -60,6 +72,8 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
           (stateData.lastSuccessfulRefreshAt as string) ?? new Date().toISOString(),
         refreshStatus: "success",
         error: null,
+        diagnostics,
+        diagnosticsHasLoaded: Boolean(diagnostics),
       });
     } catch (err) {
       set({
@@ -94,6 +108,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     try {
       const data = await fetchState(state.selectedRepoKey);
       const stateData = data as Record<string, unknown>;
+      const diagnostics = (stateData.diagnostics as SourceDiagnostics | undefined) ?? null;
       set({
         data,
         isLoading: false,
@@ -105,6 +120,8 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
         refreshStatus: "success",
         manualRefreshStatus: "success",
         error: null,
+        diagnostics,
+        diagnosticsHasLoaded: Boolean(diagnostics),
       });
     } catch (err) {
       set({
@@ -125,6 +142,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       set({ refreshStatus: "running" });
       const data = await fetchState(state.selectedRepoKey);
       const stateData = data as Record<string, unknown>;
+      const diagnostics = (stateData.diagnostics as SourceDiagnostics | undefined) ?? null;
       const apiLastRefreshAt = (stateData.lastSuccessfulRefreshAt as string) ?? null;
 
       if (apiLastRefreshAt && apiLastRefreshAt !== state.lastPollTimestamp) {
@@ -136,6 +154,8 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
           refreshStatus: "success",
           hasEverLoaded: true,
           error: null,
+          diagnostics,
+          diagnosticsHasLoaded: Boolean(diagnostics),
         });
       } else {
         set({
@@ -153,5 +173,24 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 
   clearManualRefreshError: () => {
     set({ manualRefreshErrorTimestamp: null });
+  },
+
+  loadDiagnostics: async () => {
+    set({ diagnosticsLoading: true, diagnosticsError: null });
+    try {
+      const data = (await fetchDiagnostics()) as SourceDiagnostics;
+      set({
+        diagnostics: data,
+        diagnosticsLoading: false,
+        diagnosticsHasLoaded: true,
+        diagnosticsError: null,
+      });
+    } catch (err) {
+      set({
+        diagnosticsLoading: false,
+        diagnosticsHasLoaded: true,
+        diagnosticsError: String(err),
+      });
+    }
   },
 }));

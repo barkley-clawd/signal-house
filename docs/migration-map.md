@@ -57,7 +57,7 @@ All `.tsx` under `frontend/src/components/`.
 | `AttentionRow` | Single row in attention queue | Done — `frontend/src/components/AttentionRow.tsx` |
 | `ModelUsageRankList` | Ranked model usage list (replaces SessionUsageSection internals) | Not started |
 | `UsageBar` | Horizontal bar for token/cost breakdown | Not started |
-| `SourceHealthSection` | Lazy-loaded diagnostics panel | Not started |
+| `SourceHealthSection` | Lazy-loaded diagnostics panel | Done — `frontend/src/components/SourceHealthSection.tsx` |
 
 ---
 
@@ -170,7 +170,7 @@ Tracks build order. A step is **done** only when the component renders correct d
 | 4 | `TrendCard` + `TrendEChart` + `useEChartsTheme` | Partial (`useEChartsTheme` done) |
 | 5 | `AttentionQueue` + `AttentionRow` | Partial — `AttentionRow` done |
 | 6 | `ModelUsageRankList` + `UsageBar` | Not started |
-| 7 | `SourceHealthSection` (lazy) | Not started |
+| 7 | `SourceHealthSection` (lazy) | Done |
 | 8 | Wire API routes to real backend (db + collector) | Not started |
 | 9 | Move `server/db/` → `db/`, `server/lib/` → `collector/` | Not started |
 | 10 | Delete old Nuxt/Vue infrastructure | Not started |

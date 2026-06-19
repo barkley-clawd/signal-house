@@ -12,7 +12,8 @@ export type SectionKind =
   | "trends"
   | "attention"
   | "model-usage"
-  | "session-usage";
+  | "session-usage"
+  | "diagnostics";
 
 export interface EmptyStateConfig {
   message: string;

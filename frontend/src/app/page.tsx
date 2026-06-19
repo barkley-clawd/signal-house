@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { RefreshCw } from "lucide-react";
 import { useDashboardStore } from "@/store/dashboard";
@@ -18,6 +19,24 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { SectionState, useSectionState } from "@/components/section-state";
 import { StatusStrip } from "@/components/StatusStrip";
+
+const SourceHealthSection = dynamic(
+  () =>
+    import("@/components/SourceHealthSection").then(
+      (m) => m.SourceHealthSection,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-xl ring-1 ring-foreground/10 bg-card py-4">
+        <div className="px-4 space-y-2">
+          <div className="h-4 w-1/3 animate-pulse rounded bg-card-hover" />
+          <div className="h-3 w-2/3 animate-pulse rounded bg-card-hover" />
+        </div>
+      </div>
+    ),
+  },
+);
 
 type TypeFilter = "issues" | "prs" | "all";
 type ConditionFilter = "stale" | "blocked" | "failing" | "all";
@@ -290,6 +309,11 @@ export default function Home() {
               variant="outline"
               size="sm"
               className="w-full border-divider text-text-secondary hover:bg-card-hover"
+              onClick={() => {
+                document
+                  .getElementById("source-health-section")
+                  ?.scrollIntoView({ behavior: "smooth" });
+              }}
             >
               View Diagnostics
             </Button>
@@ -451,6 +475,10 @@ export default function Home() {
             </SectionState>
           </CardContent>
         </Card>
+      </section>
+
+      <section aria-label="Source health diagnostics" id="source-health-section" className="mt-6 scroll-mt-6">
+        <SourceHealthSection />
       </section>
 
       <footer className="mt-8 text-center text-sm text-text-muted">

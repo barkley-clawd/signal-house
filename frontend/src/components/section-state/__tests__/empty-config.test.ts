@@ -9,6 +9,7 @@ describe("emptyStateConfigs", () => {
     "attention",
     "model-usage",
     "session-usage",
+    "diagnostics",
   ];
 
   it("has a config for every section kind", () => {
@@ -63,6 +64,15 @@ describe("emptyStateConfigs", () => {
     );
     expect(emptyStateConfigs["session-usage"].hint).toBe(
       "Configure OpenCode stats collection"
+    );
+  });
+
+  it("diagnostics config has expected values", () => {
+    expect(emptyStateConfigs.diagnostics.message).toBe(
+      "No diagnostics available"
+    );
+    expect(emptyStateConfigs.diagnostics.hint).toBe(
+      "Diagnostics appear after the first data refresh"
     );
   });
 });

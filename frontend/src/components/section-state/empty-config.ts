@@ -21,4 +21,8 @@ export const emptyStateConfigs: Record<SectionKind, EmptyStateConfig> = {
     message: "No session data yet",
     hint: "Configure OpenCode stats collection",
   },
+  diagnostics: {
+    message: "No diagnostics available",
+    hint: "Diagnostics appear after the first data refresh",
+  },
 };

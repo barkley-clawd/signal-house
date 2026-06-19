@@ -62,6 +62,19 @@ function ModelUsageSkeleton() {
   );
 }
 
+function DiagnosticsSkeleton() {
+  return (
+    <div className="space-y-3" aria-label="Loading diagnostics">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="flex items-center justify-between rounded-lg border border-card-border bg-card-bg px-3 py-2">
+          <Skeleton className="h-4 w-1/3 bg-divider" />
+          <Skeleton className="h-4 w-16 bg-divider" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SessionUsageSkeleton() {
   return (
     <div className="space-y-3" aria-label="Loading session usage">
@@ -81,6 +94,7 @@ const skeletonMap: Record<SectionKind, React.FC> = {
   attention: AttentionSkeleton,
   "model-usage": ModelUsageSkeleton,
   "session-usage": SessionUsageSkeleton,
+  diagnostics: DiagnosticsSkeleton,
 };
 
 export function SectionSkeleton({ section }: SectionSkeletonProps) {
