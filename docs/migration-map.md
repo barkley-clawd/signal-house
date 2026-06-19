@@ -21,7 +21,7 @@ Parent issue: #131 · This document: #149
 | `CycleTimeChart.vue` | `components/CycleTimeChart.vue` | `TrendCard` | Not started |
 | `CIHealthChart.vue` | `components/CIHealthChart.vue` | `TrendCard` | Not started |
 | `TrendChart.vue` | `components/TrendChart.vue` | `TrendEChart` (raw ECharts wrapper) | Not started |
-| `StaleWorkTable.vue` | `components/StaleWorkTable.vue` | `AttentionQueue` + `AttentionRow` | Not started |
+| `StaleWorkTable.vue` | `components/StaleWorkTable.vue` | `AttentionQueue` + `AttentionRow` | Partial — `AttentionRow` done |
 
 ### Retain (refactor to React)
 
@@ -54,7 +54,7 @@ All `.tsx` under `frontend/src/components/`.
 | `TrendCard` | Card wrapper for trend charts (replaces 3 chart components) | Not started |
 | `TrendEChart` | Raw ECharts React wrapper with shared theme + resize + dispose | Not started |
 | `AttentionQueue` | Stale/blocked work list container (replaces StaleWorkTable) | Not started |
-| `AttentionRow` | Single row in attention queue | Not started |
+| `AttentionRow` | Single row in attention queue | Done — `frontend/src/components/AttentionRow.tsx` |
 | `ModelUsageRankList` | Ranked model usage list (replaces SessionUsageSection internals) | Not started |
 | `UsageBar` | Horizontal bar for token/cost breakdown | Not started |
 | `SourceHealthSection` | Lazy-loaded diagnostics panel | Not started |
@@ -168,7 +168,7 @@ Tracks build order. A step is **done** only when the component renders correct d
 | 2 | `store/dashboard.ts` — typed Zustand store with `LatestState` | Partial (store exists, needs typing) |
 | 3 | `HealthSummaryRow` + `HealthSignalCard` | Not started |
 | 4 | `TrendCard` + `TrendEChart` + `useEChartsTheme` | Partial (`useEChartsTheme` done) |
-| 5 | `AttentionQueue` + `AttentionRow` | Not started |
+| 5 | `AttentionQueue` + `AttentionRow` | Partial — `AttentionRow` done |
 | 6 | `ModelUsageRankList` + `UsageBar` | Not started |
 | 7 | `SourceHealthSection` (lazy) | Not started |
 | 8 | Wire API routes to real backend (db + collector) | Not started |
