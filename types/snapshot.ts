@@ -117,7 +117,7 @@ export interface DashboardWindowSessionUsageSummary {
   cacheWriteTokens: number | null
   uniqueTools: string[]
   toolUsage: Array<{ toolName: string; count: number; percentage: number | null }>
-  modelUsage?: Array<{
+  modelUsage: Array<{
     modelName: string
     messages: number
     inputTokens: number | null

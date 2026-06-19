@@ -45,6 +45,26 @@
             </div>
             <EmptyState v-else message="No tool usage recorded" />
           </div>
+
+          <div class="session-usage__panel">
+            <h4>Model usage</h4>
+            <div v-if="sessionUsage.modelUsage.length" class="session-usage__models">
+              <div v-for="model in sessionUsage.modelUsage" :key="model.modelName" class="session-usage__model">
+                <div class="session-usage__model-head">
+                  <span class="session-usage__model-name">{{ model.modelName }}</span>
+                  <span class="session-usage__model-count">{{ formatNumber(model.messages) }} messages</span>
+                </div>
+                <div class="session-usage__model-grid">
+                  <MetricCard label="Input" :value="model.inputTokens ?? '—'" />
+                  <MetricCard label="Output" :value="model.outputTokens ?? '—'" />
+                  <MetricCard label="Cache read" :value="model.cacheReadTokens ?? '—'" />
+                  <MetricCard label="Cache write" :value="model.cacheWriteTokens ?? '—'" />
+                  <MetricCard label="Cost" :value="formatCurrency(model.cost)" />
+                </div>
+              </div>
+            </div>
+            <EmptyState v-else message="No model usage recorded" />
+          </div>
         </div>
 
         <p v-if="sessionUsage.message" class="session-usage__note">{{ sessionUsage.message }}</p>
@@ -170,6 +190,43 @@ function formatPercent(value: number | null | undefined): string {
   gap: 0.75rem;
 }
 
+.session-usage__models {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.session-usage__model {
+  padding: 0.75rem;
+  border: 1px solid #1e293b;
+  border-radius: 0.5rem;
+  background: #020617;
+}
+
+.session-usage__model-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.7rem;
+}
+
+.session-usage__model-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.session-usage__model-count {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.session-usage__model-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
 .session-usage__tool-head {
   display: flex;
   justify-content: space-between;
@@ -209,7 +266,8 @@ function formatPercent(value: number | null | undefined): string {
 @media (max-width: 900px) {
   .session-usage__summary,
   .session-usage__token-grid,
-  .session-usage__tokens {
+  .session-usage__tokens,
+  .session-usage__model-grid {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -217,7 +275,8 @@ function formatPercent(value: number | null | undefined): string {
 @media (max-width: 640px) {
   .session-usage__summary,
   .session-usage__token-grid,
-  .session-usage__tokens {
+  .session-usage__tokens,
+  .session-usage__model-grid {
     grid-template-columns: 1fr;
   }
 }

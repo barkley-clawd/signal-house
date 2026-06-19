@@ -1,5 +1,5 @@
 import { defineEventHandler, getQuery, setHeader } from 'h3'
-import { initDb, getLatestState, getDailyMetricsRange, getDailyMetricsRangeForRepo, getNormalizedSnapshotForRepo } from '../db/client'
+import { initDb, getLatestState, getDailyMetricsRange, getDailyMetricsRangeForRepo, getNormalizedSnapshotForRepo, getLatestOpenCodeDailyUsageModelUsage } from '../db/client'
 import { buildDashboardWindow } from '../lib/dashboard-state'
 import { ALL_REPOS_REPO_KEY } from '../../types/daily-metrics'
 
@@ -14,6 +14,7 @@ export default defineEventHandler(async (event) => {
 
   const state = getLatestState()
   const sessionUsage = state.snapshot?.aggregates.sessionUsage ?? null
+  const latestModelUsage = getLatestOpenCodeDailyUsageModelUsage()
   const today = new Date().toISOString().slice(0, 10)
   const fromDay = new Date(`${today}T00:00:00Z`)
   fromDay.setUTCDate(fromDay.getUTCDate() - 27)
@@ -27,7 +28,9 @@ export default defineEventHandler(async (event) => {
     dashboardRows,
     new Date(),
     state.isStale,
-    viewSnapshot?.aggregates.sessionUsage ?? sessionUsage,
+    viewSnapshot?.aggregates.sessionUsage ?? sessionUsage
+      ? { ...((viewSnapshot?.aggregates.sessionUsage ?? sessionUsage) as NonNullable<typeof sessionUsage>), modelUsage: latestModelUsage ?? (viewSnapshot?.aggregates.sessionUsage ?? sessionUsage)?.modelUsage ?? [] }
+      : null,
   )
 
   return {

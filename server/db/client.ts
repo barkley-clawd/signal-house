@@ -477,6 +477,17 @@ export function getLatestOpenCodeDailyUsage(): OpenCodeDailyUsageRow | null {
   return rowToOpenCodeDailyUsage(row)
 }
 
+export function getLatestOpenCodeDailyUsageModelUsage(): NonNullable<import('../../types/aggregates').SessionUsageAggregate['modelUsage']> | null {
+  const latest = getLatestOpenCodeDailyUsage()
+  if (!latest?.rawJson) return null
+  try {
+    const parsed = JSON.parse(latest.rawJson) as { modelUsage?: unknown }
+    return Array.isArray(parsed.modelUsage) ? parsed.modelUsage as NonNullable<import('../../types/aggregates').SessionUsageAggregate['modelUsage']> : null
+  } catch {
+    return null
+  }
+}
+
 // ── Normalized source data write helpers ──────────────────────────
 
 function upsertIssuesFromSnapshot(snapshot: MetricSnapshot): void {

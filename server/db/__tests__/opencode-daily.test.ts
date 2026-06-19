@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { initDb, upsertOpenCodeDailyUsage, getOpenCodeDailyUsages, getLatestOpenCodeDailyUsage, close } from '../client'
+import { initDb, upsertOpenCodeDailyUsage, getOpenCodeDailyUsages, getLatestOpenCodeDailyUsage, getLatestOpenCodeDailyUsageModelUsage, close } from '../client'
 import type { OpenCodeDailyUsageInsert } from '../../../types/opencode-daily'
 
 let tmpDir: string
@@ -130,11 +130,22 @@ describe('opencode_daily_usage table', () => {
 
   it('stores rawJson text', async () => {
     await initDb()
-    const raw = '{"sessions": 5, "messages": 10}'
+    const raw = '{"sessions": 5, "messages": 10, "modelUsage": [{"modelName":"a","messages":2,"inputTokens":1,"outputTokens":2,"cacheReadTokens":null,"cacheWriteTokens":null,"cost":0.1}]}'
     upsertOpenCodeDailyUsage(makeRow('2026-06-01', { rawJson: raw }))
 
     const results = getOpenCodeDailyUsages('2026-06-01', '2026-06-01')
     expect(results[0]!.rawJson).toBe(raw)
+    expect(getLatestOpenCodeDailyUsageModelUsage()).toEqual([
+      {
+        modelName: 'a',
+        messages: 2,
+        inputTokens: 1,
+        outputTokens: 2,
+        cacheReadTokens: null,
+        cacheWriteTokens: null,
+        cost: 0.1,
+      },
+    ])
   })
 
   it('handles null totalCost', async () => {

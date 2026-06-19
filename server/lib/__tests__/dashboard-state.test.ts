@@ -363,6 +363,53 @@ describe('buildDashboardWindow — extended coverage', () => {
     expect(window.cards.sessionUsage.status).toBe('unconfigured')
   })
 
+  it('includes model usage rows when present on the session aggregate', () => {
+    vi.stubEnv('GITHUB_TOKEN', 'tok')
+    vi.stubEnv('GITHUB_OWNER', 'o')
+    vi.stubEnv('SECRET_HOUSE_GITHUB_REPO', 'r')
+    vi.stubEnv('GIT_REPOS', '/tmp/a')
+    vi.stubEnv('SESSIONS_PERIOD_DAYS', '30')
+
+    const window = buildDashboardWindow([
+      makeDailyMetricsRow('2026-06-14'),
+    ], new Date('2026-06-14T12:00:00Z'), false, {
+      periodStart: '2026-06-01',
+      periodEnd: '2026-06-14',
+      totalSessions: 4,
+      startedSessions: 4,
+      completedSessions: 4,
+      erroredSessions: null,
+      stuckSessions: null,
+      lastActivityAt: '2026-06-14T11:00:00Z',
+      messages: 12,
+      activeDays: 3,
+      totalCost: 1.2,
+      averageCostPerDay: 0.4,
+      averageTokensPerSession: 100,
+      medianTokensPerSession: 90,
+      inputTokens: 80,
+      outputTokens: 20,
+      cacheReadTokens: 5,
+      cacheWriteTokens: 2,
+      uniqueTools: [],
+      toolUsage: [],
+      modelUsage: [{
+        modelName: 'opencode-go/deepseek-v4-flash',
+        messages: 12,
+        inputTokens: 80,
+        outputTokens: 20,
+        cacheReadTokens: 5,
+        cacheWriteTokens: 2,
+        cost: 1.2,
+      }],
+      topActions: [],
+      errorCount: 0,
+    })
+
+    expect(window.sessionUsage?.modelUsage).toHaveLength(1)
+    expect(window.sessionUsage?.modelUsage[0]?.modelName).toBe('opencode-go/deepseek-v4-flash')
+  })
+
   it('reports unconfigured sources when GitHub and local git are not configured', () => {
     vi.stubEnv('SESSIONS_PERIOD_DAYS', '30')
 
