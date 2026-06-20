@@ -206,9 +206,9 @@ function buildCycleTimeOption(days: DashboardWindowDay[]): EChartsOption | null 
         connectNulls: false,
         symbol: "circle",
         symbolSize: 4,
-        lineStyle: { color: "#a855f7", width: 2 },
-        itemStyle: { color: "#a855f7" },
-        areaStyle: { color: "rgba(168,85,247,0.12)" },
+        lineStyle: { color: "#a78bfa", width: 2 },
+        itemStyle: { color: "#a78bfa" },
+        areaStyle: { color: "rgba(167,139,250,0.12)" },
       },
     ],
   };
@@ -422,7 +422,7 @@ export default function Home() {
           >
             Signal House
           </h1>
-          <p className="mt-2 text-text-secondary">Developer activity dashboard scaffold</p>
+          <p className="mt-2 text-base text-text-secondary font-body">Developer activity dashboard scaffold</p>
         </header>
 
         <section aria-label="Headline health summary" className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -675,7 +675,7 @@ export default function Home() {
               </div>
 
               {!isFiltered ? null : (
-                <p className="text-sm text-text-muted">Filters are active.</p>
+                <p className="text-base text-text-muted">Filters are active.</p>
               )}
             </div>
 
@@ -688,7 +688,7 @@ export default function Home() {
             >
               <div className="space-y-2">
                 {filteredItems.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-divider px-4 py-6 text-sm text-text-muted">
+                  <p className="rounded-lg border border-dashed border-divider px-4 py-6 text-base text-text-muted">
                     No items match this filter. Try broadening your filter.
                   </p>
                 ) : (
