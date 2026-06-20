@@ -1,6 +1,16 @@
 <template>
   <div class="stale-table-wrapper">
-    <table v-if="!isBlockedState && items.length > 0" class="stale-table">
+    <div v-if="!isBlockedState && items.length > 0" class="queue-header">
+      <h3>Attention Queue</h3>
+      <div class="queue-tabs" aria-hidden="true">
+        <span class="queue-tabs__item queue-tabs__item--active">All</span>
+        <span class="queue-tabs__item">Issues</span>
+        <span class="queue-tabs__item">PRs</span>
+      </div>
+      <span class="queue-sort">Sorted by: Urgency</span>
+    </div>
+
+    <table v-if="!isBlockedState && visibleItems.length > 0" class="stale-table">
       <thead>
         <tr>
           <th class="col-type">Type</th>
@@ -11,7 +21,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="item in items" :key="item.id">
+        <tr v-for="item in visibleItems" :key="item.id">
           <td class="col-type">
             <span class="type-badge" :class="`type-badge--${item.kind}`">
               {{ item.kind === 'issue' ? 'IS' : 'PR' }}
@@ -31,6 +41,7 @@
         </tr>
       </tbody>
     </table>
+    <p v-if="hiddenCount > 0" class="queue-footer">+{{ hiddenCount }} more items — refine filters to see them</p>
     <EmptyState
       v-else
       :message="emptyMessage"
@@ -71,7 +82,7 @@ const isBlockedState = computed(() => props.state === 'unconfigured' || props.st
 const emptyMessage = computed(() => props.message ?? 'No stale or blocked work')
 
 const emptyHint = computed(() => {
-  if (isBlockedState.value) return 'GitHub issues and pull requests are required'
+  if (isBlockedState.value) return 'GitHub issues and pull requests are needed for stale work detection'
   if (props.scopeLabel && props.scopeLabel !== 'all repos') return `No stale or blocked work for ${props.scopeLabel}`
   return 'All tracked items are up to date'
 })
@@ -134,18 +145,67 @@ const items = computed<StaleItem[]>(() => {
     }
   }
 
-  results.sort((a, b) => b.ageDays - a.ageDays)
-  return results.slice(0, 20)
+  results.sort((a, b) => {
+    const tierDiff = priorityTier(a) - priorityTier(b)
+    if (tierDiff !== 0) return tierDiff
+    return b.ageDays - a.ageDays
+  })
+  return results
 })
+
+const visibleItems = computed(() => items.value.slice(0, 20))
+const hiddenCount = computed(() => Math.max(0, items.value.length - visibleItems.value.length))
 
 function dayDiff(now: number, dateStr: string): number {
   return Math.floor((now - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function priorityTier(item: StaleItem): number {
+  if (item.kind === 'pr' && item.statusClass === 'blocked') return 0
+  if (item.kind === 'pr') return 1
+  return 2
 }
 </script>
 
 <style scoped>
 .stale-table-wrapper {
   overflow-x: auto;
+}
+
+.queue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  color: #cbd5e1;
+}
+
+.queue-header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.queue-tabs {
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
+.queue-tabs__item,
+.queue-sort {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.queue-footer {
+  margin: 0.6rem 0 0;
+  color: #94a3b8;
+  font-size: 0.72rem;
+}
+
+.queue-tabs__item--active {
+  color: #e2e8f0;
 }
 
 .stale-table {

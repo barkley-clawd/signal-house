@@ -209,7 +209,7 @@
         </div>
 
         <div class="section section-table">
-          <UiCard title="Stale or Blocked Work">
+          <UiCard title="Attention Queue">
             <StaleWorkTable
               :issues="displaySnapshot?.issues ?? []"
               :pull-requests="displaySnapshot?.pullRequests ?? []"
