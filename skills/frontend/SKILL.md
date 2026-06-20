@@ -5,7 +5,6 @@ version: "1.0.2"
 homepage: https://clawic.com/skills/frontend
 description: Frontend development with React, Next.js, Tailwind CSS. Build landing pages, dashboards, forms, components. Responsive, accessible, performant UI.
 changelog: "Renamed to better reflect design-focused capabilities and guidance."
-metadata: {"clawdbot":{"emoji":"🖥️","requires":{"bins":[]},"os":["linux","darwin","win32"]}}
 ---
 
 ## When to Use

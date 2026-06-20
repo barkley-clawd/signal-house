@@ -1,7 +1,6 @@
 ---
 name: Backend
 description: Build reliable backend services with proper error handling, security, and observability.
-metadata: {"clawdbot":{"emoji":"⚙️","os":["linux","darwin","win32"]}}
 ---
 
 ## Error Handling
