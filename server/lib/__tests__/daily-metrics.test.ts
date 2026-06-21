@@ -504,6 +504,78 @@ describe('computeDailyMetrics', () => {
     expect(allRow(rows, '2026-06-02')!.ciTotalRuns).toBe(0)
   })
 
+  it('distributes workflow run CI stats per repo and per day', () => {
+    const snapshot = makeSnapshot({
+      capturedAt: '2026-06-05T12:00:00Z',
+      workflowRuns: [
+        makeWorkflowRun({ id: 'a1', repo: 'alpha', repoKey: 'github:demo/alpha', completedAt: '2026-06-01T10:00:00Z', conclusion: 'success' }),
+        makeWorkflowRun({ id: 'a2', repo: 'alpha', repoKey: 'github:demo/alpha', completedAt: '2026-06-01T11:00:00Z', conclusion: 'failure' }),
+        makeWorkflowRun({ id: 'a3', repo: 'alpha', repoKey: 'github:demo/alpha', completedAt: '2026-06-03T10:00:00Z', conclusion: 'success' }),
+        makeWorkflowRun({ id: 'b1', repo: 'beta', repoKey: 'github:demo/beta', completedAt: '2026-06-01T10:00:00Z', conclusion: 'success' }),
+        makeWorkflowRun({ id: 'b2', repo: 'beta', repoKey: 'github:demo/beta', completedAt: '2026-06-03T10:00:00Z', conclusion: 'timed_out' }),
+      ],
+    })
+
+    const rows = computeDailyMetrics(snapshot)
+
+    const alphaJun1 = rows.find((row) => row.day === '2026-06-01' && row.repoKey === 'github:demo/alpha')!
+    expect(alphaJun1).toBeDefined()
+    expect(alphaJun1.ciTotalRuns).toBe(2)
+    expect(alphaJun1.ciPassCount).toBe(1)
+    expect(alphaJun1.ciFailCount).toBe(1)
+    expect(alphaJun1.ciPassRate).toBe(0.5)
+
+    const alphaJun3 = rows.find((row) => row.day === '2026-06-03' && row.repoKey === 'github:demo/alpha')!
+    expect(alphaJun3).toBeDefined()
+    expect(alphaJun3.ciTotalRuns).toBe(1)
+    expect(alphaJun3.ciPassCount).toBe(1)
+    expect(alphaJun3.ciFailCount).toBe(0)
+    expect(alphaJun3.ciPassRate).toBe(1)
+
+    const betaJun1 = rows.find((row) => row.day === '2026-06-01' && row.repoKey === 'github:demo/beta')!
+    expect(betaJun1).toBeDefined()
+    expect(betaJun1.ciTotalRuns).toBe(1)
+    expect(betaJun1.ciPassCount).toBe(1)
+    expect(betaJun1.ciFailCount).toBe(0)
+    expect(betaJun1.ciPassRate).toBe(1)
+
+    const betaJun3 = rows.find((row) => row.day === '2026-06-03' && row.repoKey === 'github:demo/beta')!
+    expect(betaJun3).toBeDefined()
+    expect(betaJun3.ciTotalRuns).toBe(1)
+    expect(betaJun3.ciPassCount).toBe(0)
+    expect(betaJun3.ciFailCount).toBe(1)
+    expect(betaJun3.ciPassRate).toBe(0)
+
+    const alphaJun2 = rows.find((row) => row.day === '2026-06-02' && row.repoKey === 'github:demo/alpha')
+    expect(alphaJun2).toBeUndefined()
+
+    expect(allRow(rows, '2026-06-01')!.ciTotalRuns).toBe(3)
+    expect(allRow(rows, '2026-06-01')!.ciPassCount).toBe(2)
+    expect(allRow(rows, '2026-06-01')!.ciFailCount).toBe(1)
+    expect(allRow(rows, '2026-06-03')!.ciTotalRuns).toBe(2)
+    expect(allRow(rows, '2026-06-03')!.ciPassCount).toBe(1)
+    expect(allRow(rows, '2026-06-03')!.ciFailCount).toBe(1)
+  })
+
+  it('treats timed_out workflow runs as CI failures in per-repo rows', () => {
+    const snapshot = makeSnapshot({
+      capturedAt: '2026-06-05T12:00:00Z',
+      workflowRuns: [
+        makeWorkflowRun({ id: 'a1', repo: 'alpha', repoKey: 'github:demo/alpha', completedAt: '2026-06-02T10:00:00Z', conclusion: 'timed_out' }),
+        makeWorkflowRun({ id: 'a2', repo: 'alpha', repoKey: 'github:demo/alpha', completedAt: '2026-06-02T11:00:00Z', conclusion: 'startup_failure' }),
+        makeWorkflowRun({ id: 'a3', repo: 'alpha', repoKey: 'github:demo/alpha', completedAt: '2026-06-02T12:00:00Z', conclusion: 'cancelled' }),
+      ],
+    })
+
+    const rows = computeDailyMetrics(snapshot)
+    const row = rows.find((r) => r.day === '2026-06-02' && r.repoKey === 'github:demo/alpha')!
+    expect(row).toBeDefined()
+    expect(row.ciTotalRuns).toBe(3)
+    expect(row.ciPassCount).toBe(0)
+    expect(row.ciFailCount).toBe(2)
+    expect(row.ciPassRate).toBe(0)
+  })
+
   it('handles a comprehensive snapshot with all data types across multiple days', () => {
     const snapshot = makeSnapshot({
       capturedAt: '2026-06-05T12:00:00Z',

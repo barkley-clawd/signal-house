@@ -264,9 +264,17 @@ export function computeDailyMetrics(snapshot: MetricSnapshot): DailyMetricsInser
     }
 
     const repoPrs = snapshot.pullRequests.filter(item => item.repoKey === repoKey)
+    const repoRuns = snapshot.workflowRuns.filter(item => item.repoKey === repoKey)
     for (const day of Array.from(repoDays).sort().reverse()) {
       if (!allDays.has(day)) continue
       const repoCt = computeTrailingCycleTime(day, repoPrs, 14)
+      const repoCiTotal = repoRuns.filter(run => run.completedAt != null && toDayKey(run.completedAt) === day).length
+      const repoCiPass = repoRuns.filter(run => run.completedAt != null && toDayKey(run.completedAt) === day && run.conclusion === 'success').length
+      const repoCiFail = repoRuns.filter(run => {
+        if (run.completedAt == null) return false
+        if (toDayKey(run.completedAt) !== day) return false
+        return run.conclusion === 'failure' || run.conclusion === 'timed_out' || run.conclusion === 'startup_failure'
+      }).length
       pushRow(inserts, {
         day,
         repoKey,
@@ -282,10 +290,10 @@ export function computeDailyMetrics(snapshot: MetricSnapshot): DailyMetricsInser
         medianCycleTimeDays: repoCt.medianCycleTimeDays,
         p95CycleTimeDays: repoCt.p95CycleTimeDays,
         cycleTimeSampleSize: repoCt.cycleTimeSampleSize,
-        ciTotalRuns: 0,
-        ciPassCount: 0,
-        ciFailCount: 0,
-        ciPassRate: null,
+        ciTotalRuns: repoCiTotal,
+        ciPassCount: repoCiPass,
+        ciFailCount: repoCiFail,
+        ciPassRate: repoCiTotal > 0 ? repoCiPass / repoCiTotal : null,
         ciAvgDurationMs: null,
         totalSessions: 0,
         sessionErrorCount: 0,
