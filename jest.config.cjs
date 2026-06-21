@@ -11,7 +11,6 @@ module.exports = {
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/frontend/src/$1',
-    '^vitest$': '<rootDir>/test-shims/vitest.ts',
     '^nitropack/runtime$': '<rootDir>/test-shims/nitropack-runtime.ts',
   },
   transform: {

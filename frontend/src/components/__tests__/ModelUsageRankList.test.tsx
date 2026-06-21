@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@jest/globals";
 import { averageCostPerMessage, hasDetailData, totalTokens } from "../model-usage-utils";
 import type { DashboardWindowSessionUsageSummary } from "@/types";
 
