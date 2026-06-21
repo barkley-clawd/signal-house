@@ -206,14 +206,13 @@ describe('getLatestState prefers normalized snapshot', () => {
     expect(state.snapshot!.issues[0]!.title).toBe('Normalized Issue')
   })
 
-  it('falls back to blob snapshot when normalized data is missing', async () => {
+  it('returns null snapshot when only blob data exists (no normalized data)', async () => {
     await initDb()
     const snapshot = makeSnapshot({ id: 'snap-blob-only' })
     insertSnapshot(snapshot)
 
     const state = getLatestState()
-    expect(state.snapshot).not.toBeNull()
-    expect(state.snapshot!.id).toBe('snap-blob-only')
+    expect(state.snapshot).toBeNull()
   })
 
   it('returns null snapshot when neither normalized nor blob exist', async () => {

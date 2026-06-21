@@ -234,9 +234,7 @@ export function getRefreshInProgress(): boolean {
 }
 
 export function getLatestState(): LatestState {
-  const normalizedSnapshot = getNormalizedSnapshot()
-  const blobSnapshot = getLatestSnapshot()
-  const snapshot = normalizedSnapshot ?? blobSnapshot
+  const snapshot = getNormalizedSnapshot()
   const db = getDb()
 
   const lastRefreshRow = db.prepare(SQL.getLatestState).get({ key: 'last_successful_refresh' }) as { value?: unknown } | undefined
