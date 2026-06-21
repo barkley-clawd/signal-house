@@ -151,10 +151,10 @@ Only after all replacements are built, tested, and no imports remain.
 | `pages/` | Nuxt pages — replaced by `frontend/src/app/` |
 | `layouts/` | Nuxt layouts — replaced by `frontend/src/app/layout.tsx` |
 | `components/*.vue` | All 11 Vue components |
-| `server/` | Nuxt server — API routes move to `frontend/src/app/api/`, db/lib move to root |
+| `server/` | Shared backend modules and local API support |
 | `assets/` | Nuxt assets — move to `frontend/public/` or `frontend/src/app/` |
-| `.nuxt/`, `.output/` | Nuxt build artifacts |
-| Nuxt-specific deps in root `package.json` | `nuxt`, `vue` |
+| `.nuxt/` | Removed from root workflow |
+| Nuxt-specific deps in root `package.json` | root Nuxt/Vue runtime | removed |
 
 ---
 

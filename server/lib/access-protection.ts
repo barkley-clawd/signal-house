@@ -1,4 +1,4 @@
-import { createError, getRequestHeader, setResponseHeader, type H3Event } from 'h3'
+import { createError, getRequestHeader, setResponseHeader, type H3Event } from '../runtime/h3'
 import { getEnv } from './env'
 
 const WWW_AUTH = 'Basic realm="Signal House", charset="UTF-8"'

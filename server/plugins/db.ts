@@ -1,7 +1,6 @@
-import { defineNitroPlugin } from 'nitropack/runtime'
 import { close, initDb, runRetention } from '../db/client'
 
-export default defineNitroPlugin(async (nitroApp) => {
+export async function startDb(): Promise<void> {
   await initDb()
   console.info('[db] initialized')
 
@@ -11,9 +10,9 @@ export default defineNitroPlugin(async (nitroApp) => {
   } catch (error) {
     console.error('[db] retention cleanup failed:', error)
   }
+}
 
-  nitroApp.hooks.hook('close', () => {
-    close()
-    console.info('[db] closed')
-  })
-})
+export function stopDb(): void {
+  close()
+  console.info('[db] closed')
+}

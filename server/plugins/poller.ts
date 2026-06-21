@@ -1,21 +1,21 @@
-import { defineNitroPlugin } from 'nitropack/runtime'
 import { initDb } from '../db/client'
 import { getPollerConfig, startMetricsPoller, type PollerRuntime } from '../lib/poller'
 
-export default defineNitroPlugin(async (nitroApp) => {
+export async function startAppPoller(): Promise<PollerRuntime | null> {
   await initDb()
 
   const config = getPollerConfig()
   if (!config.enabled) {
     console.info('[poller] disabled')
-    return
+    return null
   }
 
-  const runtime: PollerRuntime | null = startMetricsPoller(config)
+  const runtime = startMetricsPoller(config)
   console.info('[poller] started')
+  return runtime
+}
 
-  nitroApp.hooks.hook('close', () => {
-    runtime?.stop()
-    console.info('[poller] stopped')
-  })
-})
+export function stopAppPoller(runtime: PollerRuntime | null | undefined): void {
+  runtime?.stop()
+  console.info('[poller] stopped')
+}

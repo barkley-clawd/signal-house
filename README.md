@@ -196,7 +196,7 @@ ipconfig getifaddr en0
 cd frontend && npm run build    # builds Next.js frontend (this is what runs in production)
 ```
 
-The root `npm run build` builds the Nuxt/Nitro server output (`.output/server/index.mjs`). This is used for backend unit tests, not for the production service. The production service runs from the `frontend/` Next.js build.
+The root workspace is now just shared backend/test code and the production service runs from the `frontend/` Next.js build.
 
 ## Configuration
 
@@ -321,7 +321,7 @@ The poller:
 
 Manual refresh and scheduled refresh must not fork into separate logic. They share the same runner and the same concurrency guard. If a manual refresh is requested while the poller is mid-run, the manual endpoint responds with `409 Conflict`; if a scheduled tick fires while a manual refresh is running, the poller logs the skip and waits for the next interval.
 
-> **Note:** The poller plugin uses Nitro server hooks and does not currently start as part of the Next.js deployment. Automatic background polling is a pending gap. See the Architecture section for status.
+
 
 ## API shape
 
@@ -424,7 +424,7 @@ npm test
 cd frontend && npx tsc --noEmit && npm run build
 ```
 
-> The root `npm run typecheck` runs `nuxt typecheck`, which depends on the old Nuxt config. Prefer `npx tsc --noEmit` from the `frontend/` directory for type checking.
+> The root `npm run typecheck` now runs `npx tsc --noEmit` from the frontend workspace.
 
 Use the repo's actual scripts as the source of truth. If a script is missing or fails for environmental reasons, document that clearly.
 
@@ -543,8 +543,8 @@ What is not protected:
 ├── server/            Backend modules (DB, collectors, refresh runner)
 │   ├── db/            SQLite database layer (client, schema, migrations)
 │   ├── lib/           Business logic (collectors, dashboard state, diagnostics)
-│   ├── plugins/       Nitro server plugins (poller, DB init)
-│   └── middleware/     Nitro server middleware (access protection)
+│   ├── plugins/       Server startup hooks (poller, DB init)
+│   └── middleware/     Server middleware (access protection)
 ├── frontend/          Next.js dashboard application
 │   ├── src/app/       App Router pages and API routes
 │   ├── src/components/ React components
@@ -553,7 +553,7 @@ What is not protected:
 │   └── src/types/     TypeScript type definitions (re-exported from root types/)
 ├── types/             Shared TypeScript type definitions
 ├── .data/             SQLite database directory (gitignored)
-├── .output/           Nuxt/Nitro build output (backend unit tests only, not deployed)
+
 └── frontend/README.md  Boilerplate from create-next-app (not actively maintained)
 ```
 

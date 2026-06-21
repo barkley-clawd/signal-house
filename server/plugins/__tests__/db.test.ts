@@ -12,28 +12,10 @@ jest.mock('../../db/client', () => ({
   runRetention: mocks.mockRunRetention,
 }))
 
-const mockHooks: { name: string; fn: (...args: unknown[]) => unknown }[] = []
-
-jest.mock('nitropack/runtime', () => ({
-  defineNitroPlugin: (def: (nitroApp: unknown) => unknown) => def,
-}));
-
-import dbPlugin from '../db'
-
-function makeNitroApp() {
-  return {
-    hooks: {
-      hook: (name: string, fn: (...args: unknown[]) => unknown) => {
-        mockHooks.push({ name, fn })
-        return () => {}
-      },
-    },
-  }
-}
+import { startDb, stopDb } from '../db'
 
 describe('db plugin', () => {
   beforeEach(() => {
-    mockHooks.length = 0
     jest.clearAllMocks()
   })
 
@@ -44,15 +26,12 @@ describe('db plugin', () => {
   it('initializes the database at startup and closes it on shutdown', async () => {
     mocks.mockInitDb.mockResolvedValue(undefined)
 
-    await (dbPlugin as (app: unknown) => Promise<void>)(makeNitroApp())
+    await startDb()
 
     expect(mocks.mockInitDb).toHaveBeenCalledTimes(1)
     expect(mocks.mockRunRetention).toHaveBeenCalledTimes(1)
 
-    const closeHook = mockHooks.find(h => h.name === 'close')
-    expect(closeHook).toBeDefined()
-
-    closeHook?.fn()
+    stopDb()
     expect(mocks.mockClose).toHaveBeenCalledTimes(1)
   })
 })

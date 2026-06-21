@@ -1,12 +1,6 @@
 import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals'
 import { getAccessProtectionConfig, verifyAccess } from '../access-protection'
 
-jest.mock('h3', () => ({
-  createError: (error: unknown) => error,
-  getRequestHeader: (event: any, key: string) => event.headers?.[key],
-  setResponseHeader: jest.fn(),
-}))
-
 describe('access protection', () => {
   let savedAccessUsername: string | undefined
   let savedAccessPassword: string | undefined
