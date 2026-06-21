@@ -22,7 +22,6 @@ export type {
 
 export type {
   MetricSnapshot,
-  SnapshotRow,
   LatestState,
   SourceDiagnostics,
   DashboardWindow,

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import Database from 'better-sqlite3'
 import {
   initDb, persistSnapshot, getNormalizedSnapshot, hasNormalizedData,
-  getLatestState, getLatestSnapshot, close, insertSnapshot,
+  getLatestState, close,
 } from '../client'
 import type { MetricSnapshot } from '../../../types/snapshot'
 
@@ -187,7 +187,7 @@ describe('normalized read helpers', () => {
 })
 
 describe('getLatestState prefers normalized snapshot', () => {
-  it('returns normalized snapshot when both blob and normalized exist', async () => {
+  it('returns the normalized snapshot once a refresh has persisted', async () => {
     await initDb()
     const snapshot = makeSnapshot({
       id: 'snap-both',
@@ -206,74 +206,10 @@ describe('getLatestState prefers normalized snapshot', () => {
     expect(state.snapshot!.issues[0]!.title).toBe('Normalized Issue')
   })
 
-  it('returns null snapshot when only blob data exists (no normalized data)', async () => {
-    await initDb()
-    const snapshot = makeSnapshot({ id: 'snap-blob-only' })
-    insertSnapshot(snapshot)
-
-    const state = getLatestState()
-    expect(state.snapshot).toBeNull()
-  })
-
-  it('returns null snapshot when neither normalized nor blob exist', async () => {
+  it('returns null snapshot when no refresh has completed', async () => {
     await initDb()
     const state = getLatestState()
     expect(state.snapshot).toBeNull()
-  })
-})
-
-describe('response shape parity between normalized and blob paths', () => {
-  it('normalized snapshot produces same issues/PRs/workflowRuns as blob', async () => {
-    await initDb()
-    const original = makeSnapshot({
-      id: 'snap-parity',
-      issues: [
-        { id: 'i1', title: 'Issue 1', state: 'open', createdAt: '2026-06-01T10:00:00Z', updatedAt: '2026-06-02T10:00:00Z', closedAt: null, repo: 'test/repo', repoKey: 'github:test/repo', labels: ['bug'], assignee: null, milestone: null, url: '' },
-        { id: 'i2', title: 'Issue 2', state: 'closed', createdAt: '2026-06-01T10:00:00Z', updatedAt: '2026-06-03T10:00:00Z', closedAt: '2026-06-03T10:00:00Z', repo: 'test/repo', repoKey: 'github:test/repo', labels: [], assignee: 'alice', milestone: null, url: '' },
-      ],
-      pullRequests: [
-        { id: 'pr1', title: 'PR 1', state: 'merged', createdAt: '2026-06-01T10:00:00Z', updatedAt: '2026-06-03T10:00:00Z', headSha: 'abc', mergedAt: '2026-06-03T10:00:00Z', closedAt: null, repo: 'test/repo', repoKey: 'github:test/repo', author: 'bob', labels: [], additions: 10, deletions: 5, changedFiles: 2, url: '', ciStatus: 'success' },
-      ],
-      workflowRuns: [
-        { id: 'wf1', name: 'CI', status: 'completed', conclusion: 'success', createdAt: '2026-06-01T10:00:00Z', completedAt: '2026-06-01T11:00:00Z', headSha: null, repo: 'test/repo', repoKey: 'github:test/repo', branch: 'main', workflowName: 'CI', url: null },
-      ],
-    })
-    persistSnapshot(original)
-
-    const blobSnapshot = getLatestSnapshot()
-    const normalizedSnapshot = getNormalizedSnapshot()
-
-    expect(normalizedSnapshot).not.toBeNull()
-    expect(blobSnapshot).not.toBeNull()
-
-    expect(normalizedSnapshot!.issues).toHaveLength(blobSnapshot!.issues.length)
-    expect(normalizedSnapshot!.pullRequests).toHaveLength(blobSnapshot!.pullRequests.length)
-    expect(normalizedSnapshot!.workflowRuns).toHaveLength(blobSnapshot!.workflowRuns.length)
-
-    for (let i = 0; i < normalizedSnapshot!.issues.length; i++) {
-      const norm = normalizedSnapshot!.issues[i]!
-      const blob = blobSnapshot!.issues[i]!
-      expect(norm.id).toBe(blob.id)
-      expect(norm.title).toBe(blob.title)
-      expect(norm.state).toBe(blob.state)
-      expect(norm.repoKey).toBe(blob.repoKey)
-      expect(norm.labels).toEqual(blob.labels)
-    }
-
-    for (let i = 0; i < normalizedSnapshot!.pullRequests.length; i++) {
-      const norm = normalizedSnapshot!.pullRequests[i]!
-      const blob = blobSnapshot!.pullRequests[i]!
-      expect(norm.id).toBe(blob.id)
-      expect(norm.state).toBe(blob.state)
-      expect(norm.additions).toBe(blob.additions)
-    }
-
-    for (let i = 0; i < normalizedSnapshot!.workflowRuns.length; i++) {
-      const norm = normalizedSnapshot!.workflowRuns[i]!
-      const blob = blobSnapshot!.workflowRuns[i]!
-      expect(norm.id).toBe(blob.id)
-      expect(norm.conclusion).toBe(blob.conclusion)
-    }
   })
 })
 

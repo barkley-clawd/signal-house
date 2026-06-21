@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 7
+export const SCHEMA_VERSION = 8
 
 export const SQL = {
 
@@ -6,8 +6,6 @@ export const SQL = {
     CREATE TABLE IF NOT EXISTS snapshots (
       id          TEXT PRIMARY KEY,
       captured_at TEXT NOT NULL,
-      data        TEXT NOT NULL,
-      version     INTEGER NOT NULL DEFAULT 1,
       created_at  TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -175,162 +173,6 @@ export const SQL = {
     DROP TABLE IF EXISTS latest_state;
   `,
 
-  createStorageTables: `
-    CREATE TABLE IF NOT EXISTS snapshots (
-      id          TEXT PRIMARY KEY,
-      captured_at TEXT NOT NULL,
-      data        TEXT NOT NULL,
-      version     INTEGER NOT NULL DEFAULT 1,
-      created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS aggregates (
-      id           TEXT PRIMARY KEY,
-      type         TEXT NOT NULL,
-      period_start TEXT NOT NULL,
-      period_end   TEXT NOT NULL,
-      data         TEXT NOT NULL,
-      snapshot_id  TEXT NOT NULL,
-      created_at   TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (snapshot_id) REFERENCES snapshots(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS latest_state (
-      key        TEXT PRIMARY KEY,
-      value      TEXT NOT NULL,
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_snapshots_captured_at
-      ON snapshots(captured_at DESC);
-
-    CREATE INDEX IF NOT EXISTS idx_aggregates_type
-      ON aggregates(type);
-
-    CREATE INDEX IF NOT EXISTS idx_aggregates_period
-      ON aggregates(period_start, period_end);
-
-    CREATE INDEX IF NOT EXISTS idx_latest_state_key
-      ON latest_state(key);
-
-    CREATE TABLE IF NOT EXISTS source_issues (
-      id               TEXT NOT NULL,
-      last_snapshot_id TEXT NOT NULL,
-      title            TEXT NOT NULL,
-      state            TEXT NOT NULL,
-      created_at       TEXT NOT NULL,
-      updated_at       TEXT NOT NULL,
-      closed_at        TEXT,
-      repo             TEXT NOT NULL,
-      repo_key         TEXT NOT NULL,
-      labels           TEXT NOT NULL DEFAULT '[]',
-      assignee         TEXT,
-      milestone        TEXT,
-      url              TEXT NOT NULL,
-      PRIMARY KEY (id)
-    );
-
-    CREATE TABLE IF NOT EXISTS source_pull_requests (
-      id               TEXT NOT NULL,
-      last_snapshot_id TEXT NOT NULL,
-      title            TEXT NOT NULL,
-      state            TEXT NOT NULL,
-      created_at       TEXT NOT NULL,
-      updated_at       TEXT NOT NULL,
-      head_sha         TEXT,
-      merged_at        TEXT,
-      closed_at        TEXT,
-      repo             TEXT NOT NULL,
-      repo_key         TEXT NOT NULL,
-      author           TEXT NOT NULL,
-      labels           TEXT NOT NULL DEFAULT '[]',
-      additions        INTEGER,
-      deletions        INTEGER,
-      changed_files    INTEGER,
-      url              TEXT NOT NULL,
-      ci_status        TEXT,
-      PRIMARY KEY (id)
-    );
-
-    CREATE TABLE IF NOT EXISTS source_workflow_runs (
-      id               TEXT NOT NULL,
-      last_snapshot_id TEXT NOT NULL,
-      name             TEXT NOT NULL,
-      status           TEXT NOT NULL,
-      conclusion       TEXT,
-      created_at       TEXT NOT NULL,
-      completed_at     TEXT,
-      head_sha         TEXT,
-      repo             TEXT NOT NULL,
-      repo_key         TEXT NOT NULL,
-      branch           TEXT NOT NULL,
-      workflow_name    TEXT NOT NULL,
-      url              TEXT,
-      PRIMARY KEY (id)
-    );
-
-    CREATE TABLE IF NOT EXISTS source_sessions (
-      id               TEXT NOT NULL,
-      last_snapshot_id TEXT NOT NULL,
-      tool_name        TEXT NOT NULL,
-      action           TEXT NOT NULL,
-      timestamp        TEXT NOT NULL,
-      duration_ms      INTEGER,
-      success          INTEGER NOT NULL DEFAULT 1,
-      metadata         TEXT NOT NULL DEFAULT '{}',
-      PRIMARY KEY (id)
-    );
-
-    CREATE TABLE IF NOT EXISTS source_repositories (
-      repo_key         TEXT NOT NULL,
-      last_snapshot_id TEXT NOT NULL,
-      name             TEXT NOT NULL,
-      local_path       TEXT,
-      remote_url       TEXT,
-      github_owner     TEXT,
-      github_repo      TEXT,
-      source           TEXT NOT NULL DEFAULT 'github',
-      PRIMARY KEY (repo_key)
-    );
-
-    CREATE TABLE IF NOT EXISTS source_local_git (
-      repo_key         TEXT NOT NULL,
-      last_snapshot_id TEXT NOT NULL,
-      source           TEXT NOT NULL DEFAULT 'local',
-      path             TEXT NOT NULL,
-      repo_name        TEXT NOT NULL,
-      remote_url       TEXT,
-      github_owner     TEXT,
-      github_repo      TEXT,
-      default_branch   TEXT,
-      is_git_repo      INTEGER NOT NULL DEFAULT 1,
-      recent_commits   INTEGER NOT NULL DEFAULT 0,
-      authors          TEXT NOT NULL DEFAULT '[]',
-      latest_commit_at TEXT,
-      error            TEXT,
-      PRIMARY KEY (repo_key)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_source_issues_repo_key
-      ON source_issues(repo_key);
-    CREATE INDEX IF NOT EXISTS idx_source_issues_state
-      ON source_issues(state);
-    CREATE INDEX IF NOT EXISTS idx_source_pull_requests_repo_key
-      ON source_pull_requests(repo_key);
-    CREATE INDEX IF NOT EXISTS idx_source_pull_requests_state
-      ON source_pull_requests(state);
-    CREATE INDEX IF NOT EXISTS idx_source_workflow_runs_repo_key
-      ON source_workflow_runs(repo_key);
-    CREATE INDEX IF NOT EXISTS idx_source_workflow_runs_conclusion
-      ON source_workflow_runs(conclusion);
-    CREATE INDEX IF NOT EXISTS idx_source_sessions_timestamp
-      ON source_sessions(timestamp);
-    CREATE INDEX IF NOT EXISTS idx_source_sessions_tool_name
-      ON source_sessions(tool_name);
-    CREATE INDEX IF NOT EXISTS idx_source_local_git_source
-      ON source_local_git(source);
-  `,
-
   createDailyMetricsV3: `
     CREATE TABLE IF NOT EXISTS daily_metrics_v3 (
       day                   TEXT NOT NULL,
@@ -403,24 +245,10 @@ export const SQL = {
   `,
 
   insertSnapshot: `
-    INSERT INTO snapshots (id, captured_at, data, version)
-    VALUES (@id, @capturedAt, @data, @version)
+    INSERT INTO snapshots (id, captured_at)
+    VALUES (@id, @capturedAt)
     ON CONFLICT(id) DO UPDATE SET
-      data = excluded.data,
-      version = excluded.version,
       captured_at = excluded.captured_at;
-  `,
-
-  getLatestSnapshot: `
-    SELECT * FROM snapshots
-    ORDER BY captured_at DESC
-    LIMIT 1;
-  `,
-
-  listSnapshots: `
-    SELECT * FROM snapshots
-    ORDER BY captured_at DESC
-    LIMIT @limit OFFSET @offset;
   `,
 
   insertAggregate: `

@@ -3,7 +3,8 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import Database from 'better-sqlite3'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { initDb, getLatestState, close, setRefreshRunState, getRefreshRunState, getLatestSnapshot, insertSnapshot, getDbPath } from '../client'
+import { initDb, getLatestState, close, setRefreshRunState, getRefreshRunState, persistSnapshot, getDbPath } from '../client'
+import type { MetricSnapshot } from '../../../types/snapshot'
 
 let tmpDir: string
 
@@ -111,7 +112,7 @@ describe('initDb on fresh database', () => {
 
   it('persists data on disk across close and reopen', async () => {
     await initDb()
-    insertSnapshot({
+    const snapshot: MetricSnapshot = {
       id: 'snap-1',
       capturedAt: '2026-06-18T12:00:00.000Z',
       issues: [],
@@ -130,38 +131,17 @@ describe('initDb on fresh database', () => {
         computedAt: '2026-06-18T12:00:00.000Z',
       },
       metadata: { source: 'orchestrated', refreshDurationMs: 1, partialData: false, errors: [] },
-    } as any)
+    }
+    persistSnapshot(snapshot)
     close()
 
     const reopened = await initDb()
     expect(reopened).toBeTruthy()
-    expect(getLatestSnapshot()?.id).toBe('snap-1')
+    expect(getLatestState().snapshot?.id).toBe('snap-1')
   })
 
-  it('preserves snapshots and backfills daily metrics on schema upgrade', async () => {
+  it('preserves snapshot marker across schema upgrade (blob payload dropped)', async () => {
     const legacyDb = new Database(join(tmpDir, 'metrics.db'))
-    const snapshotData = {
-      id: 'snap-old',
-      capturedAt: '2026-06-01T00:00:00.000Z',
-      issues: [
-        { id: 'i1', title: 'Issue 1', state: 'closed', createdAt: '2026-06-01T10:00:00Z', updatedAt: '2026-06-01T10:00:00Z', closedAt: '2026-06-01T12:00:00Z', repo: 'test/repo', repoKey: 'github:test/repo', labels: [], assignee: null, milestone: null, url: '' },
-      ],
-      pullRequests: [],
-      workflowRuns: [],
-      repositories: [],
-      sessions: [],
-      localGit: [],
-      errors: [],
-      aggregates: {
-        throughput: { periodStart: '2026-06-01T00:00:00.000Z', periodEnd: '2026-06-01T00:00:00.000Z', issuesClosed: 1, issuesOpened: 1, prsMerged: 0, prsCreated: 0, totalCommits: 0 },
-        cycleTime: null,
-        ci: null,
-        staleWork: { asOf: '2026-06-01T00:00:00.000Z', staleIssues: 0, stalePRs: 0, staleThresholdDays: 14, oldestItemDays: null },
-        sessionUsage: null,
-        computedAt: '2026-06-01T00:00:00.000Z',
-      },
-      metadata: { source: 'orchestrated', refreshDurationMs: 1, partialData: false, errors: [] },
-    }
     legacyDb.exec(`
       CREATE TABLE snapshots (
         id TEXT PRIMARY KEY,
@@ -186,28 +166,26 @@ describe('initDb on fresh database', () => {
       );
       INSERT INTO latest_state (key, value) VALUES ('schema_version', '3');
       INSERT INTO snapshots (id, captured_at, data, version)
-      VALUES ('snap-old', '2026-06-01T00:00:00.000Z', '${JSON.stringify(snapshotData).replace(/'/g, "''")}', 3);
+      VALUES ('snap-old', '2026-06-01T00:00:00.000Z', '{}', 3);
     `)
     legacyDb.close()
 
     await initDb()
 
-    // Snapshot should be preserved after migration
-    expect(getLatestSnapshot()).not.toBeNull()
-    expect(getLatestSnapshot()!.id).toBe('snap-old')
-
-    // Daily metrics should be backfilled from the preserved snapshot
+    // Snapshot marker should be preserved after migration.
+    // The legacy blob payload is intentionally dropped; the next refresh
+    // is expected to repopulate the normalized source data and daily metrics.
     const { getDailyMetricsRange } = await import('../client')
-    const metrics = getDailyMetricsRange('2026-06-01', '2026-06-01')
-    expect(metrics.length).toBeGreaterThanOrEqual(1)
-    const dayRow = metrics.find(m => m.day === '2026-06-01')
-    expect(dayRow).toBeDefined()
-    expect(dayRow!.issuesOpened).toBe(1)
-    expect(dayRow!.issuesClosed).toBe(1)
+    expect(getDailyMetricsRange('2000-01-01', '2099-12-31')).toHaveLength(0)
 
     const reopened = new Database(join(tmpDir, 'metrics.db'))
     const snapCount = reopened.prepare('SELECT COUNT(*) as count FROM snapshots').get() as { count: number }
     expect(snapCount.count).toBe(1)
+    const snapRow = reopened.prepare('SELECT id, captured_at FROM snapshots').get() as { id: string; captured_at: string }
+    expect(snapRow.id).toBe('snap-old')
+    expect(snapRow.captured_at).toBe('2026-06-01T00:00:00.000Z')
+    const columns = reopened.prepare(`PRAGMA table_info(snapshots)`).all() as Array<{ name: string }>
+    expect(columns.map(c => c.name).sort()).toEqual(['captured_at', 'created_at', 'id'])
     reopened.close()
   })
 })

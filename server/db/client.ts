@@ -5,7 +5,7 @@ import { SQL, SCHEMA_VERSION } from './schema'
 import { getBooleanEnv } from '../lib/env'
 import { buildDiagnostics } from '../lib/build-diagnostics'
 import { getRefreshHistoryLimit, getStaleThresholdMs, getRetentionConfig } from '../lib/runtime-config'
-import type { MetricSnapshot, SnapshotRow, LatestState, RefreshRunRecord, RefreshRunState, RefreshSourceHealth, RefreshRunStatus, SourceDiagnostics } from '../../types/snapshot'
+import type { MetricSnapshot, LatestState, RefreshRunRecord, RefreshRunState, RefreshSourceHealth, RefreshRunStatus, SourceDiagnostics } from '../../types/snapshot'
 import type { AggregateType, DashboardAggregates, ThroughputAggregate, CycleTimeAggregate, CIAggregate, StaleWorkAggregate, SessionUsageAggregate } from '../../types/aggregates'
 import type { DailyMetricsInsert, DailyMetricsRow } from '../../types/daily-metrics'
 import type { OpenCodeDailyUsageInsert, OpenCodeDailyUsageRow } from '../../types/opencode-daily'
@@ -123,9 +123,9 @@ function migrate(db: Db): void {
     const current = row ? Number(row.value) : 0
     if (current >= SCHEMA_VERSION) return
 
-    // Preserve existing snapshots so the migration is safe to roll out.
-    // After recreating tables we restore them and backfill daily metrics.
-    const existingSnapshots = db.prepare(`SELECT * FROM snapshots`).all() as SnapshotRow[]
+    // Preserve existing snapshot markers (id + captured_at) so the foreign
+    // keys in the aggregates table stay valid after the migration.
+    const existingSnapshots = db.prepare(`SELECT id, captured_at FROM snapshots`).all() as Array<{ id: string; captured_at: string }>
 
     db.exec(SQL.dropTables)
     db.exec(SQL.createTables)
@@ -138,17 +138,14 @@ function migrate(db: Db): void {
         ON daily_metrics(repo_key, day DESC);
     `)
 
-    // Restore snapshots and backfill daily metrics for the dashboard window
+    // Restore the snapshot marker rows. The blob payload was removed in
+    // SCHEMA_VERSION 8, so we only carry forward the id and captured_at.
     const insertSnap = db.prepare(SQL.insertSnapshot)
     for (const snap of existingSnapshots) {
       insertSnap.run({
         id: snap.id,
-        capturedAt: (snap as unknown as Record<string, unknown>).captured_at as string,
-        data: snap.data,
-        version: snap.version,
+        capturedAt: snap.captured_at,
       })
-      const snapshot = JSON.parse(snap.data) as MetricSnapshot
-      backfillDailyMetricsFromSnapshot(db, snapshot)
     }
 
     db.prepare(SQL.upsertLatestState).run({
@@ -158,40 +155,6 @@ function migrate(db: Db): void {
   })
 
   runMigrations()
-}
-
-function backfillDailyMetricsFromSnapshot(db: Db, snapshot: MetricSnapshot): void {
-  const dailyRows = computeDailyMetrics(snapshot)
-  const stmt = db.prepare(SQL.upsertDailyMetrics)
-  for (const row of dailyRows) {
-    stmt.run({
-      day: row.day,
-      repoKey: row.repoKey,
-      capturedAt: row.capturedAt,
-      source: row.source,
-      version: SCHEMA_VERSION,
-      reflectsCompleteData: row.reflectsCompleteData ? 1 : 0,
-      issuesOpened: row.issuesOpened,
-      issuesClosed: row.issuesClosed,
-      prsCreated: row.prsCreated,
-      prsMerged: row.prsMerged,
-      totalCommits: row.totalCommits,
-      avgCycleTimeDays: row.avgCycleTimeDays,
-      medianCycleTimeDays: row.medianCycleTimeDays,
-      p95CycleTimeDays: row.p95CycleTimeDays,
-      cycleTimeSampleSize: row.cycleTimeSampleSize,
-      ciTotalRuns: row.ciTotalRuns,
-      ciPassCount: row.ciPassCount,
-      ciFailCount: row.ciFailCount,
-      ciPassRate: row.ciPassRate,
-      ciAvgDurationMs: row.ciAvgDurationMs,
-      totalSessions: row.totalSessions,
-      sessionErrorCount: row.sessionErrorCount,
-      staleIssues: row.staleIssues,
-      stalePrs: row.stalePrs,
-      warnings: JSON.stringify(row.warnings),
-    })
-  }
 }
 
 export function save(): void {
@@ -218,8 +181,6 @@ export function insertSnapshot(snapshot: MetricSnapshot): void {
     db.prepare(SQL.insertSnapshot).run({
       id: snapshot.id,
       capturedAt: snapshot.capturedAt,
-      data: JSON.stringify(snapshot),
-      version: SCHEMA_VERSION,
     })
     db.prepare(SQL.upsertLatestState).run({
       key: 'last_successful_refresh',
@@ -227,21 +188,6 @@ export function insertSnapshot(snapshot: MetricSnapshot): void {
     })
   })
   transaction()
-}
-
-export function getLatestSnapshot(): MetricSnapshot | null {
-  const db = getDb()
-  const stmt = db.prepare(SQL.getLatestSnapshot)
-  const row = stmt.get() as { data?: string } | undefined
-  if (!row?.data) return null
-  return JSON.parse(row.data) as MetricSnapshot
-}
-
-export function listSnapshots(limit = 10, offset = 0): SnapshotRow[] {
-  const db = getDb()
-  const stmt = db.prepare(SQL.listSnapshots)
-  const rows = stmt.all({ limit: limit, offset: offset }) as SnapshotRow[]
-  return rows
 }
 
 export function insertAggregate(
@@ -306,7 +252,6 @@ export function getLatestState(): LatestState {
 
   return {
     snapshot,
-    viewSnapshot: snapshot,
     selectedRepoKey: 'all',
     lastRefreshAt: lastRefresh,
     lastSuccessfulRefreshAt: lastRefresh,
@@ -663,18 +608,17 @@ function upsertDailyMetricsFromSnapshot(snapshot: MetricSnapshot): void {
  * If any step fails, the entire transaction rolls back, preserving
  * the previous good dashboard state.
  *
- * Writes the blob snapshot (existing cache/read path), normalized
- * source data rows, aggregates, and daily metrics.
+ * Writes the snapshot marker (id + captured_at), the normalized source
+ * data rows, aggregates, and daily metrics. The legacy JSON blob payload
+ * was removed in SCHEMA_VERSION 8.
  */
 export function persistSnapshot(snapshot: MetricSnapshot): void {
   const db = getDb()
   const transaction = db.transaction(() => {
-    // 1. Write blob snapshot (existing cache/read path)
+    // 1. Write snapshot marker (no blob payload)
     db.prepare(SQL.insertSnapshot).run({
       id: snapshot.id,
       capturedAt: snapshot.capturedAt,
-      data: JSON.stringify(snapshot),
-      version: SCHEMA_VERSION,
     })
     db.prepare(SQL.upsertLatestState).run({
       key: 'last_successful_refresh',

@@ -30,14 +30,6 @@ export interface MetricSnapshot {
   }
 }
 
-export interface SnapshotRow {
-  id: string
-  capturedAt: string
-  data: string
-  version: number
-  createdAt: string
-}
-
 export interface DashboardWindowDay {
   day: string
   isGap: boolean
@@ -172,7 +164,6 @@ export interface DashboardWindow {
 
 export interface LatestState {
   snapshot: MetricSnapshot | null
-  viewSnapshot: MetricSnapshot | null
   selectedRepoKey: string
   lastRefreshAt: string | null
   lastSuccessfulRefreshAt: string | null

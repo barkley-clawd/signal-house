@@ -9,9 +9,8 @@ import {
   runRetention,
   insertSnapshot,
   upsertDailyMetrics,
-  getLatestSnapshot,
+  getLatestState,
   getDailyMetricsRange,
-  listSnapshots,
   persistSnapshot,
 } from '../client'
 import type { DailyMetricsInsert } from '../../../types/daily-metrics'
@@ -114,8 +113,12 @@ describe('runRetention', () => {
     } as NodeJS.ProcessEnv)
 
     expect(result.snapshotsDeleted).toBe(2)
-    expect(getLatestSnapshot()?.id).toBe('snap-latest')
-    expect(listSnapshots()).toHaveLength(1)
+
+    const db = new Database(join(tmpDir, 'metrics.db'))
+    const remaining = db.prepare(`SELECT id FROM snapshots`).all() as Array<{ id: string }>
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0]!.id).toBe('snap-latest')
+    db.close()
   })
 
   it('never deletes the latest snapshot even when cutoff is in the future', async () => {
@@ -127,8 +130,13 @@ describe('runRetention', () => {
       SECRET_HOUSE_RETENTION_SNAPSHOTS_DAYS: '0',
     } as NodeJS.ProcessEnv)
 
-    expect(getLatestSnapshot()?.id).toBe('snap-only')
-    expect(listSnapshots()).toHaveLength(1)
+    expect(result.snapshotsDeleted).toBe(0)
+
+    const db = new Database(join(tmpDir, 'metrics.db'))
+    const remaining = db.prepare(`SELECT id FROM snapshots`).all() as Array<{ id: string }>
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0]!.id).toBe('snap-only')
+    db.close()
   })
 
   it('prunes old daily metrics but keeps recent dashboard data', async () => {
@@ -208,14 +216,14 @@ describe('runRetention', () => {
     const snap = makeSnapshot('snap-latest', '2026-06-18T12:00:00.000Z')
     persistSnapshot(snap)
 
-    const beforeRetention = getLatestSnapshot()
-    expect(beforeRetention?.id).toBe('snap-latest')
+    const beforeRetention = getLatestState()
+    expect(beforeRetention.snapshot?.id).toBe('snap-latest')
 
     runRetention()
 
-    const afterRetention = getLatestSnapshot()
-    expect(afterRetention?.id).toBe('snap-latest')
-    expect(afterRetention?.capturedAt).toBe('2026-06-18T12:00:00.000Z')
+    const afterRetention = getLatestState()
+    expect(afterRetention.snapshot?.id).toBe('snap-latest')
+    expect(afterRetention.snapshot?.capturedAt).toBe('2026-06-18T12:00:00.000Z')
   })
 
   it('returns zero counts on an empty database', async () => {

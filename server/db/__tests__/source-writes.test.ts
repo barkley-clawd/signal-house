@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import Database from 'better-sqlite3'
 import {
-  initDb, persistSnapshot, getLatestSnapshot, insertSnapshot, getLatestState, close,
+  initDb, persistSnapshot, getLatestState, close,
 } from '../client'
 import type { MetricSnapshot } from '../../../types/snapshot'
 
@@ -425,7 +425,7 @@ describe('failed refresh preserves previous good state', () => {
     persistSnapshot(goodSnapshot)
 
     // Verify good data is there
-    expect(getLatestSnapshot()?.id).toBe('snap-good')
+    expect(getLatestState().snapshot?.id).toBe('snap-good')
 
     const db = new Database(join(tmpDir, 'metrics.db'))
     expect(countRows(db, 'source_issues')).toBe(1)
@@ -438,10 +438,10 @@ describe('failed refresh preserves previous good state', () => {
     await initDb()
 
     // The previous good data should still be retrievable
-    const latest = getLatestSnapshot()
-    expect(latest).not.toBeNull()
-    expect(latest!.id).toBe('snap-good')
-    expect(latest!.issues[0]!.title).toBe('Good Data')
+    const state = getLatestState()
+    expect(state.snapshot).not.toBeNull()
+    expect(state.snapshot!.id).toBe('snap-good')
+    expect(state.snapshot!.issues[0]!.title).toBe('Good Data')
   })
 
   it('transaction rollback preserves old data when persistSnapshot throws', async () => {
@@ -476,9 +476,9 @@ describe('failed refresh preserves previous good state', () => {
     expect(() => persistSnapshot(badSnapshot)).toThrow()
 
     // The good snapshot should still be intact
-    const latest = getLatestSnapshot()
-    expect(latest).not.toBeNull()
-    expect(latest!.id).toBe('snap-good')
+    const state = getLatestState()
+    expect(state.snapshot).not.toBeNull()
+    expect(state.snapshot!.id).toBe('snap-good')
 
     // Source issues should still contain the original
     const reopened = new Database(join(tmpDir, 'metrics.db'))
@@ -489,54 +489,14 @@ describe('failed refresh preserves previous good state', () => {
   })
 })
 
-describe('blob snapshot path preserved', () => {
-  it('still writes blob snapshot during persistSnapshot', async () => {
-    await initDb()
-    const snapshot = makeSnapshot({
-      id: 'snap-blob',
-      issues: [{ id: 'i1', title: 'Issue', state: 'open', createdAt: '2026-06-01T10:00:00Z', updatedAt: '', closedAt: null, repo: 'test/repo', repoKey: 'github:test/repo', labels: [], assignee: null, milestone: null, url: '' }],
-    })
-    persistSnapshot(snapshot)
-
-    const latest = getLatestSnapshot()
-    expect(latest).not.toBeNull()
-    expect(latest!.id).toBe('snap-blob')
-    expect(latest!.issues).toHaveLength(1)
-  })
-
-  it('insertSnapshot still works independently', async () => {
-    await initDb()
-    const snapshot = makeSnapshot({ id: 'direct-snap' })
-    insertSnapshot(snapshot)
-
-    const latest = getLatestSnapshot()
-    expect(latest).not.toBeNull()
-    expect(latest!.id).toBe('direct-snap')
-  })
-
-  it('getLatestState returns snapshot from blob path', async () => {
-    await initDb()
-    const snapshot = makeSnapshot({
-      id: 'snap-state',
-      issues: [{ id: 'i1', title: 'Issue', state: 'open', createdAt: '2026-06-01T10:00:00Z', updatedAt: '', closedAt: null, repo: 'test/repo', repoKey: 'github:test/repo', labels: [], assignee: null, milestone: null, url: '' }],
-    })
-    persistSnapshot(snapshot)
-
-    const state = getLatestState()
-    expect(state.snapshot).not.toBeNull()
-    expect(state.snapshot!.id).toBe('snap-state')
-    expect(state.lastRefreshAt).toBe('2026-06-18T12:00:00.000Z')
-  })
-})
-
 describe('empty source data handled', () => {
   it('handles snapshot with no source data gracefully', async () => {
     await initDb()
     const snapshot = makeSnapshot({ id: 'snap-empty' })
     expect(() => persistSnapshot(snapshot)).not.toThrow()
 
-    const latest = getLatestSnapshot()
-    expect(latest!.id).toBe('snap-empty')
+    const state = getLatestState()
+    expect(state.snapshot?.id).toBe('snap-empty')
   })
 
   it('handles snapshot with only some source types', async () => {
