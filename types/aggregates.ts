@@ -69,13 +69,28 @@ export interface SessionUsageAggregate {
   errorCount: number
 }
 
+export interface TokenUsageAggregate {
+  periodStart: string
+  periodEnd: string
+  source: string
+  toolName: string
+  totalSessions: number
+  totalMessages: number
+  totalTokens: number
+  totalCost: number | null
+  modelUsage: NonNullable<SessionUsageAggregate['modelUsage']>
+  rawJson: string | null
+  collectedAt: string
+}
+
 export interface DashboardAggregates {
   throughput: ThroughputAggregate
   cycleTime: CycleTimeAggregate | null
   ci: CIAggregate | null
   staleWork: StaleWorkAggregate
   sessionUsage: SessionUsageAggregate | null
+  tokenUsage?: TokenUsageAggregate | null
   computedAt: string
 }
 
-export type AggregateType = 'throughput' | 'cycleTime' | 'ci' | 'staleWork' | 'sessionUsage'
+export type AggregateType = 'throughput' | 'cycleTime' | 'ci' | 'staleWork' | 'sessionUsage' | 'tokenUsage'

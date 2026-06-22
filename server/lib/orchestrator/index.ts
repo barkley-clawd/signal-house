@@ -1,9 +1,9 @@
 import { createCollector as createGitHubCollector, collectWithConcurrency } from '../github/collector'
 import { createLocalGitCollector } from '../git/collector'
 import { createSessionCollector } from '../sessions/collector'
-import { collectDailyOpenCodeUsage } from '../opencode-daily/collector'
+import { collectTokenUsageSnapshot } from '../opencode/collector'
 import { deriveAll } from '../github/aggregates'
-import { initDb, persistSnapshot, upsertOpenCodeDailyUsage } from '../../db/client'
+import { initDb, persistSnapshot } from '../../db/client'
 import { randomUUID } from 'node:crypto'
 import { getRuntimeConfig } from '../runtime-config'
 import type { GitHubCollectorConfig } from '../github/types'
@@ -101,6 +101,7 @@ export function createOrchestrator(config: OrchestratorConfig) {
       let localGit: LocalGitRepoMetric[] = []
       let aggregates: DashboardAggregates | null = null
       let sessionUsageFromCollector: import('../../../types/aggregates').SessionUsageAggregate | null = null
+      let tokenUsageFromCollector: import('../../../types/aggregates').TokenUsageAggregate | null = null
 
       const runtimeConfig = getRuntimeConfig()
 
@@ -162,26 +163,28 @@ export function createOrchestrator(config: OrchestratorConfig) {
         }
       }
 
-      // 4. Daily OpenCode usage collector (--days 1)
-      sources.push('opencodeDaily')
+      // 4. Token usage collector (OpenCode refresh snapshot)
+      sources.push('tokenUsage')
       try {
-        const dailyResult = collectDailyOpenCodeUsage()
-        if (dailyResult.errors.length > 0) {
-          allErrors.push(...dailyResult.errors)
-        } else {
-          upsertOpenCodeDailyUsage({
-            date: dailyResult.date,
-            source: dailyResult.source,
-            totalSessions: dailyResult.totalSessions,
-            totalMessages: dailyResult.totalMessages,
-            totalTokens: dailyResult.totalTokens,
-            totalCost: dailyResult.totalCost,
-            rawJson: dailyResult.rawJson,
-            collectedAt: dailyResult.collectedAt,
-          })
+        const tokenResult = collectTokenUsageSnapshot()
+        tokenUsageFromCollector = tokenResult.errors.length > 0 ? null : {
+          periodStart: tokenResult.periodStart,
+          periodEnd: tokenResult.periodEnd,
+          source: tokenResult.source,
+          toolName: tokenResult.toolName,
+          totalSessions: tokenResult.totalSessions,
+          totalMessages: tokenResult.totalMessages,
+          totalTokens: tokenResult.totalTokens,
+          totalCost: tokenResult.totalCost,
+          modelUsage: tokenResult.modelUsage,
+          rawJson: tokenResult.rawJson,
+          collectedAt: tokenResult.collectedAt,
+        }
+        if (tokenResult.errors.length > 0) {
+          allErrors.push(...tokenResult.errors)
         }
       } catch (err) {
-        allErrors.push(`Daily OpenCode collector failed: ${err instanceof Error ? err.message : String(err)}`)
+        allErrors.push(`Token usage collector failed: ${err instanceof Error ? err.message : String(err)}`)
       }
 
       if (config.github && config.github.length > 0) {
@@ -190,6 +193,9 @@ export function createOrchestrator(config: OrchestratorConfig) {
         aggregates.throughput.totalCommits = localGit.reduce((sum, r) => sum + r.recentCommits, 0)
         if (sessionUsageFromCollector) {
           aggregates.sessionUsage = sessionUsageFromCollector
+        }
+        if (tokenUsageFromCollector) {
+          aggregates.tokenUsage = tokenUsageFromCollector
         }
       }
 
@@ -215,6 +221,7 @@ export function createOrchestrator(config: OrchestratorConfig) {
             oldestItemDays: null,
           },
           sessionUsage: sessionUsageFromCollector,
+          tokenUsage: tokenUsageFromCollector,
           computedAt: capturedAt,
         }
       }

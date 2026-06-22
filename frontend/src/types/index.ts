@@ -22,6 +22,6 @@ export type {
   DailyMetricsInsert,
   SessionUsageAggregate,
   DashboardAggregates,
-  OpenCodeDailyUsageInsert,
-  OpenCodeDailyUsageRow,
+  TokenUsageInsert,
+  TokenUsageRow,
 } from "../../../types";

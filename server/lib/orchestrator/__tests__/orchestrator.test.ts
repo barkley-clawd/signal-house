@@ -4,8 +4,7 @@ import * as db from '../../../db/client'
 jest.mock('../../../db/client', () => ({
   initDb: jest.fn().mockResolvedValue(undefined),
   persistSnapshot: jest.fn(),
-  upsertOpenCodeDailyUsage: jest.fn(),
-}))
+  }))
 
 jest.mock('../../github/collector', () => ({
   createCollector: jest.fn(),
@@ -21,14 +20,17 @@ jest.mock('../../sessions/collector', () => ({
   createSessionCollector: jest.fn(),
 }))
 
-jest.mock('../../opencode-daily/collector', () => ({
-  collectDailyOpenCodeUsage: jest.fn().mockReturnValue({
-    date: '2026-06-19',
+jest.mock('../../opencode/collector', () => ({
+  collectTokenUsageSnapshot: jest.fn().mockReturnValue({
+    periodStart: '2026-05-22T12:00:00.000Z',
+    periodEnd: '2026-06-19T12:00:00.000Z',
     source: 'opencode',
+    toolName: 'opencode',
     totalSessions: 0,
     totalMessages: 0,
     totalTokens: 0,
     totalCost: null,
+    modelUsage: [],
     rawJson: null,
     collectedAt: '2026-06-19T12:00:00.000Z',
     errors: [],
@@ -51,7 +53,7 @@ describe('createOrchestrator', () => {
 
     expect(result.snapshotId).toBeTruthy()
     expect(result.capturedAt).toBeTruthy()
-    expect(result.sources).toEqual(['opencodeDaily'])
+    expect(result.sources).toEqual(['tokenUsage'])
     expect(result.errors).toHaveLength(0)
     expect(result.partialData).toBe(false)
     expect(db.persistSnapshot).toHaveBeenCalledTimes(1)
@@ -175,7 +177,7 @@ describe('createOrchestrator', () => {
     expect(result.sources).toContain('github')
     expect(result.sources).toContain('localGit')
     expect(result.sources).toContain('sessions')
-    expect(result.sources).toContain('opencodeDaily')
+    expect(result.sources).toContain('tokenUsage')
     expect(result.errors).toHaveLength(0)
     expect(result.partialData).toBe(false)
 
@@ -469,7 +471,7 @@ describe('createOrchestrator', () => {
     const result = await orchestrator.collect()
 
     expect(result.sources).toContain('sessions')
-    expect(result.sources).toContain('opencodeDaily')
+    expect(result.sources).toContain('tokenUsage')
     expect(result.sources).not.toContain('github')
     expect(result.sources).not.toContain('localGit')
     expect(result.errors).toHaveLength(0)
@@ -549,7 +551,7 @@ describe('createOrchestrator', () => {
 
     expect(result.sources).toContain('localGit')
     expect(result.sources).toContain('sessions')
-    expect(result.sources).toContain('opencodeDaily')
+    expect(result.sources).toContain('tokenUsage')
     expect(result.errors).toHaveLength(0)
 
     const snapshotArg = jest.mocked(db.persistSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot

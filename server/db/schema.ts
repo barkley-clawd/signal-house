@@ -205,7 +205,7 @@ export const SQL = {
     );
   `,
 
-  createOpenCodeDailyUsageTable: `
+  createTokenUsageTable: `
     CREATE TABLE IF NOT EXISTS opencode_daily_usage (
       date             TEXT NOT NULL,
       source           TEXT NOT NULL DEFAULT 'opencode',
@@ -219,7 +219,7 @@ export const SQL = {
     );
   `,
 
-  upsertOpenCodeDailyUsage: `
+  upsertTokenUsage: `
     INSERT INTO opencode_daily_usage (date, source, total_sessions, total_messages, total_tokens, total_cost, raw_json, collected_at)
     VALUES (@date, @source, @totalSessions, @totalMessages, @totalTokens, @totalCost, @rawJson, @collectedAt)
     ON CONFLICT(date, source) DO UPDATE SET
@@ -231,14 +231,14 @@ export const SQL = {
       collected_at = excluded.collected_at;
   `,
 
-  getOpenCodeDailyUsages: `
+  getTokenUsages: `
     SELECT * FROM opencode_daily_usage
     WHERE (@fromDate IS NULL OR date >= @fromDate)
       AND (@toDate IS NULL OR date <= @toDate)
     ORDER BY date DESC;
   `,
 
-  getLatestOpenCodeDailyUsage: `
+  getLatestTokenUsage: `
     SELECT * FROM opencode_daily_usage
     ORDER BY date DESC, collected_at DESC
     LIMIT 1;
