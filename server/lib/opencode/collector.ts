@@ -1,6 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import os from 'node:os'
-import path from 'node:path'
+import { findOpencodeBinary, isCommandNotFound } from './binary'
 
 export interface TokenUsageCollectorResult {
   periodStart: string
@@ -23,16 +22,6 @@ export interface TokenUsageCollectorResult {
   rawJson: string | null
   collectedAt: string
   errors: string[]
-}
-
-function isCommandNotFound(err: unknown): boolean {
-  if (err instanceof Error) {
-    const e = err as NodeJS.ErrnoException
-    if (e.code === 'ENOENT' || e.code === 'EACCES') return true
-    const msg = e.message
-    if (msg.includes('ENOENT') || msg.includes('EACCES') || msg.includes('not found') || msg.includes('127')) return true
-  }
-  return false
 }
 
 function parseNumber(value: string | undefined): number | null { if (!value) return null; const normalized = value.replace(/[$,]/g,'').trim(); const m = normalized.match(/^(-?\d+(?:\.\d+)?)([KMB])$/i); if (m) { const base = Number(m[1]); if (!Number.isFinite(base)) return null; const s = m[2]!.toUpperCase(); return base * (s==='K'?1_000:s==='M'?1_000_000:1_000_000_000)} const p=Number(normalized); return Number.isFinite(p)?p:null }
@@ -75,23 +64,21 @@ export function collectTokenUsageSnapshot(): TokenUsageCollectorResult {
   const periodEnd = collectedAt
   const periodStart = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString()
   const errors: string[] = []
-  const candidates: string[] = []
-  if (process.env.OPENCODE_BIN) candidates.push(process.env.OPENCODE_BIN)
-  candidates.push('opencode')
-  candidates.push(path.join(os.homedir(), '.opencode/bin/opencode'))
-  candidates.push('/home/openclaw/.opencode/bin/opencode')
-  if (process.env.OPENCODE_COMMAND) candidates.push(process.env.OPENCODE_COMMAND)
-  for (const cmd of candidates) {
-    try {
-      const stdout = execFileSync(cmd, ['stats', '--days', '28', '--models'], { timeout: 15000, encoding: 'utf-8', stdio: ['pipe','pipe','ignore'] })
-      const parsed = parseTokenUsage(stdout)
-      return { periodStart, periodEnd, source: 'opencode', toolName: 'opencode', ...parsed, collectedAt, errors: [] }
-    } catch (err) {
-      if (isCommandNotFound(err)) continue
-      errors.push(`OpenCode stats collector failed: ${err instanceof Error ? err.message : String(err)}`)
+  const binary = findOpencodeBinary()
+  if (!binary) {
+    errors.push('OpenCode binary not found: no opencode binary available')
+    return { periodStart, periodEnd, source: 'opencode', toolName: 'opencode', totalSessions: 0, totalMessages: 0, totalTokens: 0, totalCost: null, modelUsage: [], rawJson: null, collectedAt, errors }
+  }
+  try {
+    const stdout = execFileSync(binary, ['stats', '--days', '28', '--models'], { timeout: 15000, encoding: 'utf-8', stdio: ['pipe','pipe','ignore'] })
+    const parsed = parseTokenUsage(stdout)
+    return { periodStart, periodEnd, source: 'opencode', toolName: 'opencode', ...parsed, collectedAt, errors: [] }
+  } catch (err) {
+    if (isCommandNotFound(err)) {
+      errors.push('OpenCode binary not found: no opencode binary available')
       return { periodStart, periodEnd, source: 'opencode', toolName: 'opencode', totalSessions: 0, totalMessages: 0, totalTokens: 0, totalCost: null, modelUsage: [], rawJson: null, collectedAt, errors }
     }
+    errors.push(`OpenCode stats collector failed: ${err instanceof Error ? err.message : String(err)}`)
+    return { periodStart, periodEnd, source: 'opencode', toolName: 'opencode', totalSessions: 0, totalMessages: 0, totalTokens: 0, totalCost: null, modelUsage: [], rawJson: null, collectedAt, errors }
   }
-  errors.push('OpenCode binary not found: no opencode binary available')
-  return { periodStart, periodEnd, source: 'opencode', toolName: 'opencode', totalSessions: 0, totalMessages: 0, totalTokens: 0, totalCost: null, modelUsage: [], rawJson: null, collectedAt, errors }
 }

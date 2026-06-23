@@ -13,6 +13,7 @@ beforeEach(() => {
 
 describe('collectTokenUsageSnapshot', () => {
   it('returns a refresh-scoped fallback when the binary is missing', () => {
+    execFileSync.mockImplementation(() => { throw Object.assign(new Error('spawnSync ENOENT'), { code: 'ENOENT' }) })
     const result = collectTokenUsageSnapshot()
     expect(result.source).toBe('opencode')
     expect(result.toolName).toBe('opencode')
@@ -21,6 +22,7 @@ describe('collectTokenUsageSnapshot', () => {
   })
 
   it('parses opencode stats output into token usage rows', () => {
+    execFileSync.mockReturnValueOnce('')  // --version check succeeds
     execFileSync.mockReturnValueOnce([
       '│ Sessions    4 │',
       '│ Messages    16 │',

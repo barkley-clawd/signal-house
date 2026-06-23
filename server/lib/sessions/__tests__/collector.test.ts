@@ -123,6 +123,7 @@ describe('createSessionCollector', () => {
       ],
     )
 
+    mockExecFileSync.mockReturnValueOnce('')  // --version check succeeds
     mockExecFileSync.mockReturnValueOnce(sessionListOutput() + '\n')
     mockExecFileSync.mockReturnValueOnce(mockOutput + '\n')
 
@@ -178,6 +179,7 @@ describe('createSessionCollector', () => {
       ],
     )
 
+    mockExecFileSync.mockReturnValueOnce('')  // --version check succeeds
     mockExecFileSync.mockReturnValueOnce(sessionListOutput() + '\n')
     mockExecFileSync.mockReturnValueOnce(mockOutput + '\n')
 
@@ -216,6 +218,7 @@ describe('createSessionCollector', () => {
       [],
     )
 
+    mockExecFileSync.mockReturnValueOnce('')  // --version check succeeds
     mockExecFileSync.mockReturnValueOnce(sessionListOutput() + '\n')
     mockExecFileSync.mockReturnValueOnce(mockOutput + '\n')
 
@@ -235,6 +238,7 @@ describe('createSessionCollector', () => {
       [],
     )
 
+    mockExecFileSync.mockReturnValueOnce('')  // --version check succeeds
     mockExecFileSync.mockReturnValueOnce(sessionListOutput() + '\n')
     mockExecFileSync.mockReturnValueOnce(mockOutput + '\n')
 
@@ -265,6 +269,7 @@ describe('createSessionCollector', () => {
   })
 
   it('prioritises opencodeBin over opencodeCommand when both are set', async () => {
+    mockExecFileSync.mockReturnValueOnce('')  // --version check for opencodeBin succeeds
     mockExecFileSync.mockImplementationOnce((cmd: string, args: readonly string[] | undefined) => {
       expect(cmd).toBe('/custom/opencode-bin')
       expect(args).toEqual(['session', 'list'])
@@ -286,6 +291,7 @@ describe('createSessionCollector', () => {
   })
 
   it('uses custom opencode command from config.opencodeBin', async () => {
+    mockExecFileSync.mockReturnValueOnce('')  // --version check for opencodeBin succeeds
     mockExecFileSync.mockImplementationOnce((cmd: string, args: readonly string[] | undefined) => {
       expect(cmd).toBe('/custom/opencode-bin')
       expect(args).toEqual(['session', 'list'])
@@ -304,6 +310,7 @@ describe('createSessionCollector', () => {
   })
 
   it('returns gap on unparseable CLI output', async () => {
+    mockExecFileSync.mockReturnValueOnce('')  // --version check succeeds
     mockExecFileSync.mockReturnValueOnce(sessionListOutput() + '\n')
     mockExecFileSync.mockReturnValueOnce('garbage output that is not a CLI table\n')
 
@@ -319,10 +326,11 @@ describe('createSessionCollector', () => {
 
   it('falls back to known local path when PATH opencode is missing', async () => {
     mockExecFileSync
-      .mockImplementationOnce(() => { throw enoentErr() }) // 'opencode' not on PATH
-      .mockImplementationOnce(() => { throw enoentErr() }) // $HOME/.opencode/bin/opencode not found
-      .mockImplementationOnce(() => sessionListOutput() + '\n') // known local path works
-      .mockImplementationOnce(() => cliOutput({ Sessions: 1, Messages: 0, Days: 1 }, []) + '\n')
+      .mockImplementationOnce(() => { throw enoentErr() }) // 'opencode' --version
+      .mockImplementationOnce(() => { throw enoentErr() }) // $HOME/.opencode/bin/opencode --version
+      .mockReturnValueOnce('') // /home/openclaw/.opencode/bin/opencode --version succeeds
+      .mockReturnValueOnce(sessionListOutput() + '\n') // session list
+      .mockReturnValueOnce(cliOutput({ Sessions: 1, Messages: 0, Days: 1 }, []) + '\n') // stats
 
     const collector = createSessionCollector()
     const result = await collector.collect()
@@ -332,11 +340,11 @@ describe('createSessionCollector', () => {
     expect(mockExecFileSync).toHaveBeenNthCalledWith(
       1,
       'opencode',
-      ['session', 'list'],
+      ['--version'],
       expect.objectContaining({ encoding: 'utf-8' }),
     )
     expect(mockExecFileSync).toHaveBeenNthCalledWith(
-      3,
+      4,
       '/home/openclaw/.opencode/bin/opencode',
       ['session', 'list'],
       expect.objectContaining({ encoding: 'utf-8' }),
@@ -344,6 +352,7 @@ describe('createSessionCollector', () => {
   })
 
   it('uses first executable candidate from candidate list', async () => {
+    mockExecFileSync.mockReturnValueOnce('')  // --version check for opencodeBin succeeds
     mockExecFileSync.mockReturnValueOnce(sessionListOutput() + '\n')
     mockExecFileSync.mockReturnValueOnce(cliOutput({ Sessions: 3, Messages: 0, Days: 30 }, []) + '\n')
 
@@ -375,6 +384,7 @@ describe('createSessionCollector', () => {
     process.env['OPENCODE_BIN'] = '/env/opencode'
     process.env['OPENCODE_COMMAND'] = '/env/old-opencode'
 
+    mockExecFileSync.mockReturnValueOnce('')  // --version check for OPENCODE_BIN succeeds
     mockExecFileSync.mockReturnValueOnce(sessionListOutput() + '\n')
     mockExecFileSync.mockReturnValueOnce(cliOutput({ Sessions: 5, Messages: 0, Days: 30 }, []) + '\n')
 
