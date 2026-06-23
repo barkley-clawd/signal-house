@@ -26,28 +26,29 @@ function sumOrNull(values: (number | null)[]): number | null {
 }
 
 /**
- * Ranks model usage entries by message count descending, applies a 95%
- * cumulative-message-share cutoff, and groups remaining models (2+) into
+ * Ranks model usage entries by cost descending, applies a 95%
+ * cumulative-cost-share cutoff, and groups remaining models (2+) into
  * a single "Other" row.  Returns a new sorted array; does not mutate input.
  */
 export function rankModelUsage(entries: ModelUsageEntry[]): RankedModelEntry[] {
   if (entries.length === 0) return [];
 
-  const sorted = [...entries].sort((a, b) => b.messages - a.messages);
+  const sorted = [...entries].sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0));
   const totalMessages = sorted.reduce((sum, e) => sum + e.messages, 0);
+  const totalCost = sorted.reduce((sum, e) => sum + (e.cost ?? 0), 0);
 
-  if (totalMessages === 0) {
+  if (totalCost === 0) {
     return sorted.map((e) => ({
       ...e,
       isOther: false,
-      proportion: 0,
+      proportion: totalMessages > 0 ? e.messages / totalMessages : 0,
     }));
   }
 
   let cumulative = 0;
   let topEnd = 0;
   for (let i = 0; i < sorted.length; i++) {
-    cumulative += sorted[i].messages / totalMessages;
+    cumulative += (sorted[i].cost ?? 0) / totalCost;
     topEnd = i + 1;
     if (cumulative >= 0.95) break;
   }
