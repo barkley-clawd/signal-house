@@ -26,6 +26,8 @@ export type {
   DashboardPanelStatus,
   DailyMetricsRow,
   DailyMetricsInsert,
+  DailyTokenUsageRow,
+  DailyTokenUsageInsert,
   SessionUsageAggregate,
   DashboardAggregates,
   TokenUsageRow,

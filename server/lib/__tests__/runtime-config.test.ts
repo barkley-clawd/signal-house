@@ -135,12 +135,14 @@ describe('runtime config', () => {
   it('reads configurable retention thresholds from env', () => {
     process.env['SECRET_HOUSE_RETENTION_SNAPSHOTS_DAYS'] = '60'
     process.env['SECRET_HOUSE_RETENTION_DAILY_METRICS_DAYS'] = '180'
+    process.env['SECRET_HOUSE_RETENTION_DAILY_TOKEN_USAGE_DAYS'] = '365'
     process.env['SECRET_HOUSE_RETENTION_SESSIONS_DAYS'] = '45'
     process.env['SECRET_HOUSE_RETENTION_WORKFLOW_RUNS_DAYS'] = '120'
 
     expect(getRetentionConfig()).toEqual({
       snapshotsDays: 60,
       dailyMetricsDays: 180,
+      dailyTokenUsageDays: 365,
       sessionsDays: 45,
       workflowRunsDays: 120,
     })

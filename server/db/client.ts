@@ -9,6 +9,7 @@ import type { MetricSnapshot, LatestState, RefreshRunRecord, RefreshRunState, Re
 import type { AggregateType, DashboardAggregates, ThroughputAggregate, CycleTimeAggregate, CIAggregate, StaleWorkAggregate, SessionUsageAggregate, TokenUsageAggregate } from '../../types/aggregates'
 import type { DailyMetricsInsert, DailyMetricsRow } from '../../types/daily-metrics'
 import type { TokenUsageRow } from '../../types/opencode'
+import type { DailyTokenUsageRow, DailyTokenUsageInsert } from '../../types/daily-token-usage'
 import type { IssueMetric, PullRequestMetric, WorkflowRunMetric, RepositoryIdentity, SessionMetric, LocalGitRepoMetric } from '../../types/metrics'
 import { computeDailyMetrics } from '../lib/daily-metrics'
 
@@ -122,7 +123,7 @@ function migrate(db: Db): void {
   const runMigrations = db.transaction(() => {
     db.exec(SQL.createTables)
     db.exec(SQL.createSourceDataTables)
-    // TODO: swap to SQL.createDailyTokenUsageTable once the new constant lands (issue #219)
+    db.exec(SQL.createDailyTokenUsageTable)
     const row = db.prepare(`SELECT value FROM latest_state WHERE key = 'schema_version'`).get() as { value?: unknown } | undefined
     const current = row ? Number(row.value) : 0
     if (current >= SCHEMA_VERSION) return
@@ -135,7 +136,7 @@ function migrate(db: Db): void {
     db.exec(SQL.createTables)
     db.exec(SQL.createSourceDataTables)
     db.exec(SQL.createDailyMetricsV3)
-    // TODO: swap to SQL.createDailyTokenUsageTable once the new constant lands (issue #219)
+    db.exec(SQL.createDailyTokenUsageTable)
     db.exec(`
       ALTER TABLE daily_metrics_v3 RENAME TO daily_metrics;
       CREATE INDEX IF NOT EXISTS idx_daily_metrics_repo_key
@@ -436,6 +437,46 @@ export function getLatestDailyDayForRepo(repoKey: string): string | null {
   const db = getDb()
   const row = db.prepare(`SELECT day FROM daily_metrics WHERE repo_key = ? ORDER BY day DESC LIMIT 1;`).get(repoKey) as { day?: unknown } | undefined
   return row ? String(row.day) : null
+}
+
+// ── Daily token usage helpers ──────────────────────────────────────
+
+function rowToDailyTokenUsageRow(row: Record<string, unknown>): DailyTokenUsageRow {
+  return {
+    date: String(row.date),
+    totalSessions: Number(row.total_sessions),
+    totalMessages: Number(row.total_messages),
+    totalTokens: Number(row.total_tokens),
+    totalCost: row.total_cost != null ? Number(row.total_cost) : null,
+    modelUsage: JSON.parse(String(row.model_usage)),
+    rawJson: row.raw_json != null ? String(row.raw_json) : null,
+    createdAt: String(row.created_at),
+  }
+}
+
+export function upsertDailyTokenUsage(row: DailyTokenUsageInsert): void {
+  const db = getDb()
+  db.prepare(SQL.upsertDailyTokenUsage).run({
+    date: row.date,
+    totalSessions: row.totalSessions,
+    totalMessages: row.totalMessages,
+    totalTokens: row.totalTokens,
+    totalCost: row.totalCost,
+    modelUsage: JSON.stringify(row.modelUsage),
+    rawJson: row.rawJson,
+  })
+}
+
+export function getDailyTokenUsageRange(fromDate: string, toDate: string): DailyTokenUsageRow[] {
+  const db = getDb()
+  const rows = db.prepare(SQL.getDailyTokenUsageRange).all({ fromDate, toDate }) as Record<string, unknown>[]
+  return rows.map(rowToDailyTokenUsageRow)
+}
+
+export function getLatestDailyTokenUsage(): DailyTokenUsageRow | null {
+  const db = getDb()
+  const row = db.prepare(SQL.getLatestDailyTokenUsage).get() as Record<string, unknown> | undefined
+  return row ? rowToDailyTokenUsageRow(row) : null
 }
 
 // ── Normalized source data write helpers ──────────────────────────
@@ -902,6 +943,7 @@ export interface RetentionResult {
   snapshotsDeleted: number
   aggregatesDeleted: number
   dailyMetricsDeleted: number
+  dailyTokenUsageDeleted: number
   sessionsDeleted: number
   workflowRunsDeleted: number
 }
@@ -916,6 +958,7 @@ export function runRetention(env: NodeJS.ProcessEnv = process.env): RetentionRes
   const snapshotsBefore = daysAgoIso(retention.snapshotsDays)
   const aggregatesBefore = daysAgoIso(retention.snapshotsDays)
   const dailyMetricsBeforeDay = daysAgoDay(retention.dailyMetricsDays)
+  const dailyTokenUsageBeforeDate = daysAgoDay(retention.dailyTokenUsageDays)
   const sessionsBefore = daysAgoIso(retention.sessionsDays)
   const workflowRunsBefore = daysAgoIso(retention.workflowRunsDays)
 
@@ -944,6 +987,7 @@ export function runRetention(env: NodeJS.ProcessEnv = process.env): RetentionRes
     }
 
     const dailyResult = db.prepare(SQL.deleteDailyMetricsOlderThan).run({ beforeDay: dailyMetricsBeforeDay })
+    const dailyTokenUsageResult = db.prepare(SQL.deleteDailyTokenUsageOlderThan).run({ beforeDate: dailyTokenUsageBeforeDate })
     const sessionsResult = db.prepare(SQL.deleteSessionsOlderThan).run({ before: sessionsBefore })
     const workflowRunsResult = db.prepare(SQL.deleteWorkflowRunsOlderThan).run({ before: workflowRunsBefore })
 
@@ -951,6 +995,7 @@ export function runRetention(env: NodeJS.ProcessEnv = process.env): RetentionRes
       snapshotsDeleted,
       aggregatesDeleted,
       dailyMetricsDeleted: dailyResult.changes,
+      dailyTokenUsageDeleted: dailyTokenUsageResult.changes,
       sessionsDeleted: sessionsResult.changes,
       workflowRunsDeleted: workflowRunsResult.changes,
     }

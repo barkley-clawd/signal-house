@@ -14,6 +14,7 @@ const DEFAULT_SESSION_PERIOD_DAYS = 30
 const DEFAULT_DISCOVERY_MAX_DEPTH = 3
 const DEFAULT_RETENTION_SNAPSHOTS_DAYS = 30
 const DEFAULT_RETENTION_DAILY_METRICS_DAYS = 90
+const DEFAULT_RETENTION_DAILY_TOKEN_USAGE_DAYS = 365
 const DEFAULT_RETENTION_SESSIONS_DAYS = 90
 const DEFAULT_RETENTION_WORKFLOW_RUNS_DAYS = 90
 
@@ -62,6 +63,7 @@ export interface RuntimeConfig {
   retention: {
     snapshotsDays: number
     dailyMetricsDays: number
+    dailyTokenUsageDays: number
     sessionsDays: number
     workflowRunsDays: number
   }
@@ -107,6 +109,7 @@ export function getRuntimeConfig(env: NodeJS.ProcessEnv = process.env): RuntimeC
     retention: {
       snapshotsDays: parsePositiveInt(getEnv(env, 'SECRET_HOUSE_RETENTION_SNAPSHOTS_DAYS'), DEFAULT_RETENTION_SNAPSHOTS_DAYS),
       dailyMetricsDays: parsePositiveInt(getEnv(env, 'SECRET_HOUSE_RETENTION_DAILY_METRICS_DAYS'), DEFAULT_RETENTION_DAILY_METRICS_DAYS),
+      dailyTokenUsageDays: parsePositiveInt(getEnv(env, 'SECRET_HOUSE_RETENTION_DAILY_TOKEN_USAGE_DAYS'), DEFAULT_RETENTION_DAILY_TOKEN_USAGE_DAYS),
       sessionsDays: parsePositiveInt(getEnv(env, 'SECRET_HOUSE_RETENTION_SESSIONS_DAYS'), DEFAULT_RETENTION_SESSIONS_DAYS),
       workflowRunsDays: parsePositiveInt(getEnv(env, 'SECRET_HOUSE_RETENTION_WORKFLOW_RUNS_DAYS'), DEFAULT_RETENTION_WORKFLOW_RUNS_DAYS),
     },

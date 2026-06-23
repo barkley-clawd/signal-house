@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 8
+export const SCHEMA_VERSION = 9
 
 export const SQL = {
 
@@ -203,6 +203,49 @@ export const SQL = {
       created_at            TEXT NOT NULL DEFAULT (datetime('now')),
       PRIMARY KEY (day, repo_key)
     );
+  `,
+
+  createDailyTokenUsageTable: `
+    CREATE TABLE IF NOT EXISTS daily_token_usage (
+      date             TEXT NOT NULL,
+      total_sessions   INTEGER NOT NULL DEFAULT 0,
+      total_messages   INTEGER NOT NULL DEFAULT 0,
+      total_tokens     INTEGER NOT NULL DEFAULT 0,
+      total_cost       REAL,
+      model_usage      TEXT NOT NULL DEFAULT '[]',
+      raw_json         TEXT,
+      created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (date)
+    );
+  `,
+
+  upsertDailyTokenUsage: `
+    INSERT INTO daily_token_usage (date, total_sessions, total_messages, total_tokens, total_cost, model_usage, raw_json)
+    VALUES (@date, @totalSessions, @totalMessages, @totalTokens, @totalCost, @modelUsage, @rawJson)
+    ON CONFLICT(date) DO UPDATE SET
+      total_sessions = excluded.total_sessions,
+      total_messages = excluded.total_messages,
+      total_tokens = excluded.total_tokens,
+      total_cost = excluded.total_cost,
+      model_usage = excluded.model_usage,
+      raw_json = excluded.raw_json;
+  `,
+
+  getDailyTokenUsageRange: `
+    SELECT * FROM daily_token_usage
+    WHERE date >= @fromDate AND date <= @toDate
+    ORDER BY date DESC;
+  `,
+
+  getLatestDailyTokenUsage: `
+    SELECT * FROM daily_token_usage
+    ORDER BY date DESC
+    LIMIT 1;
+  `,
+
+  deleteDailyTokenUsageOlderThan: `
+    DELETE FROM daily_token_usage
+    WHERE date < @beforeDate;
   `,
 
 

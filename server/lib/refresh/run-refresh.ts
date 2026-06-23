@@ -5,6 +5,7 @@ import {
   setRefreshRunState,
   setRefreshRunStatus,
 } from '../../db/client'
+import { maybeCollectDailyTokenUsage } from '../daily-token-usage/collector'
 import { discoverGitRepos } from '../discovery/discovery'
 import { getEnv } from '../env'
 import type { LocalGitRepoConfig, RepoDiscoveryConfig } from '../git/types'
@@ -204,6 +205,12 @@ async function executeRefresh(startedAt: string, startedMs: number): Promise<Ref
       skipped: result.skipped,
       skippedReason: result.skippedReason,
     })
+
+    try {
+      await maybeCollectDailyTokenUsage()
+    } catch (e) {
+      console.warn('[daily-token-usage] Daily collection failed:', e instanceof Error ? e.message : String(e))
+    }
 
     return result
   } catch (error) {

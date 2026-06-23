@@ -52,5 +52,10 @@ export type {
 } from './daily-metrics'
 
 export type {
+  DailyTokenUsageRow,
+  DailyTokenUsageInsert,
+} from './daily-token-usage'
+
+export type {
   TokenUsageRow,
 } from './opencode'

@@ -235,6 +235,7 @@ describe('runRetention', () => {
       snapshotsDeleted: 0,
       aggregatesDeleted: 0,
       dailyMetricsDeleted: 0,
+      dailyTokenUsageDeleted: 0,
       sessionsDeleted: 0,
       workflowRunsDeleted: 0,
     })
