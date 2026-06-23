@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, Activity, LockOpen, Loader2 } from "lucide-react";
 import { useDashboardStore } from "@/store/dashboard";
 import { cn } from "@/lib/utils";
+import { formatSourceLabel } from "@/lib/source-labels";
 import {
   Card,
   CardContent,
@@ -160,9 +161,9 @@ export function SourceHealthSection() {
                 type="button"
                 onClick={toggle}
                 className={getBadgeClasses(health.status)}
-                aria-label={`${name} ${health.status}`}
+                aria-label={`${formatSourceLabel(name)} ${health.status}`}
               >
-                {name} · {health.status}
+                {formatSourceLabel(name)} · {health.status}
               </button>
             ))
           ) : (
@@ -213,7 +214,7 @@ export function SourceHealthSection() {
                                 aria-hidden="true"
                               />
                               <span className="min-w-0 truncate text-sm text-text-primary">
-                                {name}
+                                {formatSourceLabel(name)}
                               </span>
                               <Badge
                                 variant="outline"
