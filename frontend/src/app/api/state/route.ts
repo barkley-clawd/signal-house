@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getLatestState, getDailyMetricsRange } from "../../../../../server/db/client";
+import { getLatestState, getDailyMetricsRange, getDailyTokenUsageRange } from "../../../../../server/db/client";
 import { buildDashboardWindow } from "../../../../../server/lib/dashboard-state";
 import { getDashboardWindowDays } from "../../../../../server/lib/runtime-config";
 import { ensureDb } from "../_lib/ensure-db";
@@ -84,6 +84,7 @@ export async function GET() {
     const startDay = startDate.toISOString().slice(0, 10);
 
     const rows = getDailyMetricsRange(startDay, endDay);
+    const tokenUsageDays = getDailyTokenUsageRange(startDay, endDay);
     const sessionUsageAggregate = state.snapshot?.aggregates?.sessionUsage ?? null;
     const staleThresholdDays =
       state.snapshot?.aggregates?.staleWork?.staleThresholdDays ?? STALE_THRESHOLD_DAYS_FALLBACK;
@@ -109,6 +110,7 @@ export async function GET() {
       usage: {
         sessionUsage: dashboardWindow.sessionUsage,
         tokenUsage: state.snapshot?.aggregates?.tokenUsage ?? null,
+        tokenUsageDays,
       },
       attention: {
         staleThresholdDays,

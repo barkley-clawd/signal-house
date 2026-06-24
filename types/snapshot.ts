@@ -9,6 +9,7 @@ import type {
 } from './metrics'
 import type { DashboardAggregates } from './aggregates'
 import type { DailyMetricsRow } from './daily-metrics'
+import type { DailyTokenUsageRow } from './daily-token-usage'
 import type { TokenUsageRow } from './opencode'
 
 export interface MetricSnapshot {
@@ -189,6 +190,7 @@ export interface DashboardStateStatus {
 export interface DashboardStateUsage {
   sessionUsage: DashboardWindowSessionUsageSummary | null
   tokenUsage: TokenUsageRow | null
+  tokenUsageDays: DailyTokenUsageRow[]
 }
 
 export interface DashboardAttentionItem {

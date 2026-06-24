@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { SectionState, useSectionState } from "@/components/section-state";
 import { StatusStrip, formatTimeAgo } from "@/components/StatusStrip";
 import { ModelUsageRankList } from "@/components/ModelUsageRankList";
+import { DailyTokenUsageCard } from "@/components/DailyTokenUsageCard";
 import { TrendCard } from "@/components/TrendCard";
 import type {
   DashboardAttentionItem,
@@ -1022,6 +1023,16 @@ export default function Home() {
             </SectionState>
           </CardContent>
         </Card>
+      </section>
+
+      <section aria-label="Daily token usage" className="mt-6">
+        <DailyTokenUsageCard
+          rows={data?.usage.tokenUsageDays ?? []}
+          startDay={data?.window.startDay ?? ""}
+          endDay={data?.window.endDay ?? ""}
+          loading={!hasEverLoaded && isLoading}
+          error={error}
+        />
       </section>
 
       <section aria-label="Source health diagnostics" id="source-health-section" className="mt-6 scroll-mt-6">
