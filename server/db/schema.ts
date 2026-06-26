@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 9
+export const SCHEMA_VERSION = 10
 
 export const SQL = {
 
@@ -55,7 +55,7 @@ export const SQL = {
       assignee         TEXT,
       milestone        TEXT,
       url              TEXT NOT NULL,
-      PRIMARY KEY (id)
+      PRIMARY KEY (repo_key, id)
     );
 
     CREATE TABLE IF NOT EXISTS source_pull_requests (
@@ -370,7 +370,7 @@ export const SQL = {
   upsertIssue: `
     INSERT INTO source_issues (id, last_snapshot_id, title, state, created_at, updated_at, closed_at, repo, repo_key, labels, assignee, milestone, url)
     VALUES (@id, @snapshotId, @title, @state, @createdAt, @updatedAt, @closedAt, @repo, @repoKey, @labels, @assignee, @milestone, @url)
-    ON CONFLICT(id) DO UPDATE SET
+    ON CONFLICT(repo_key, id) DO UPDATE SET
       last_snapshot_id = excluded.last_snapshot_id,
       title = excluded.title,
       state = excluded.state,
