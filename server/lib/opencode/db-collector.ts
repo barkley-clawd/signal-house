@@ -78,12 +78,6 @@ type SessionSchemaRow = {
   time_updated: number | null
   project_id: string | null
   parent_id: string | null
-  status?: string | null
-  error?: string | null
-  time_completed?: number | null
-  completed_at?: number | null
-  time_errored?: number | null
-  errored_at?: number | null
 }
 
 type MessageCountRow = {
@@ -133,23 +127,13 @@ function normalizeModelName(value: unknown): string | null {
   return null
 }
 
-function normalizeStatus(row: SessionSchemaRow): string | null {
-  const value = row.status
-  if (typeof value === 'string' && value.trim()) return value.trim().toLowerCase()
-  return null
-}
-
-function isErrored(row: SessionSchemaRow): boolean {
-  const status = normalizeStatus(row)
-  if (status && ['error', 'errored', 'failed', 'failure'].includes(status)) return true
-  if (typeof row.error === 'string' && row.error.trim()) return true
-  return row.time_errored != null || row.errored_at != null
+function isErrored(_row: SessionSchemaRow): boolean {
+  // No status/error columns in the current opencode.db schema,
+  // so we cannot detect errored sessions from the DB.
+  return false
 }
 
 function isCompleted(row: SessionSchemaRow): boolean {
-  const status = normalizeStatus(row)
-  if (status && ['completed', 'complete', 'done', 'finished', 'success', 'idle'].includes(status)) return true
-  if (row.time_completed != null || row.completed_at != null) return true
   if (row.time_created != null && row.time_updated != null) return row.time_updated > row.time_created
   return false
 }
@@ -220,13 +204,7 @@ function readSessionRows(since: number, until?: number, config?: OpencodeDbConfi
         time_created,
         time_updated,
         project_id,
-        parent_id,
-        status,
-        error,
-        time_completed,
-        completed_at,
-        time_errored,
-        errored_at
+        parent_id
       FROM session
       WHERE ${clauses.join(' AND ')}
       ORDER BY time_created DESC, id DESC

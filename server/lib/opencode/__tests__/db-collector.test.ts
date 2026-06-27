@@ -299,7 +299,7 @@ describe('opencode db collector', () => {
         sessions: 3,
         startedSessions: 3,
         completedSessions: 2,
-        erroredSessions: 1,
+        erroredSessions: 0,
         cost: 2.1,
         tokensInput: 315,
         tokensOutput: 205,
