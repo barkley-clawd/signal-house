@@ -1,8 +1,8 @@
 import { formatCycleTime } from "@/lib/format-cycle-time";
 
 describe("formatCycleTime", () => {
-  it('returns "< 1m" for 0', () => {
-    expect(formatCycleTime(0)).toBe("< 1m");
+  it('returns "0s" for 0', () => {
+    expect(formatCycleTime(0)).toBe("0s");
   });
 
   it("returns empty string for null", () => {
@@ -13,16 +13,24 @@ describe("formatCycleTime", () => {
     expect(formatCycleTime(undefined)).toBe("");
   });
 
-  it('returns "< 1m" for negative value', () => {
-    expect(formatCycleTime(-100)).toBe("< 1m");
+  it('returns "-100s" for negative value', () => {
+    expect(formatCycleTime(-100)).toBe("-100s");
   });
 
-  it('returns "1m" for 83', () => {
-    expect(formatCycleTime(83)).toBe("1m");
+  it('returns "30s" for 30', () => {
+    expect(formatCycleTime(30)).toBe("30s");
   });
 
-  it('returns "2m" for 118', () => {
-    expect(formatCycleTime(118)).toBe("2m");
+  it('returns "83s" for 83', () => {
+    expect(formatCycleTime(83)).toBe("83s");
+  });
+
+  it('returns "118s" for 118', () => {
+    expect(formatCycleTime(118)).toBe("118s");
+  });
+
+  it('returns "2m" for 120', () => {
+    expect(formatCycleTime(120)).toBe("2m");
   });
 
   it('returns "6m" for 352', () => {
