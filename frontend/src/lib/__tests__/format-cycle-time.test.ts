@@ -33,6 +33,10 @@ describe("formatCycleTime", () => {
     expect(formatCycleTime(3600)).toBe("1h");
   });
 
+  it('returns "2h" for 7200', () => {
+    expect(formatCycleTime(7200)).toBe("2h");
+  });
+
   it('returns "12h" for 43200', () => {
     expect(formatCycleTime(43200)).toBe("12h");
   });
