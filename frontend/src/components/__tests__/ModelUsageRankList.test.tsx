@@ -7,7 +7,7 @@ describe("ModelUsageRankList", () => {
   const tokenUsage: TokenUsageRow = {
     periodStart: "2026-05-25T00:00:00.000Z",
     periodEnd: "2026-06-22T00:00:00.000Z",
-    source: "opencode",
+    source: "opencodedb",
     toolName: "opencode",
     totalSessions: 4,
     totalMessages: 16,

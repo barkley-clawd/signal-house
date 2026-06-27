@@ -7,6 +7,7 @@ describe("SOURCE_LABELS", () => {
       localGit: "Local Git",
       local_git: "Local Git",
       opencode: "OpenCode",
+      opencodedb: "OpenCode",
       sessions: "Sessions",
       throughput: "Throughput",
       cycleTime: "Cycle Time",
@@ -25,6 +26,7 @@ describe("formatSourceLabel", () => {
     expect(formatSourceLabel("tokenUsage")).toBe("Token Usage");
     expect(formatSourceLabel("github")).toBe("GitHub");
     expect(formatSourceLabel("opencode")).toBe("OpenCode");
+    expect(formatSourceLabel("opencodedb")).toBe("OpenCode");
   });
 
   it("splits unknown camelCase into title case", () => {

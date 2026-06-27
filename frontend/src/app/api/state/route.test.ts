@@ -83,7 +83,7 @@ function makeLatestState(): LatestState {
         tokenUsage: {
           periodStart: "2026-05-27",
           periodEnd: "2026-06-23",
-          source: "opencode",
+          source: "opencodedb",
           toolName: "opencode",
           totalSessions: 2,
           totalMessages: 4,

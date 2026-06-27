@@ -3,6 +3,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   localGit: "Local Git",
   local_git: "Local Git",
   opencode: "OpenCode",
+  opencodedb: "OpenCode",
   sessions: "Sessions",
   throughput: "Throughput",
   cycleTime: "Cycle Time",

@@ -1,5 +1,4 @@
-import { execFileSync } from 'node:child_process'
-import { findOpencodeBinary, isCommandNotFound } from './binary'
+import { connectOpencodeDb, querySessionsByDay, queryModelBreakdown } from './db-collector'
 
 export interface TokenUsageCollectorResult {
   periodStart: string
@@ -64,21 +63,44 @@ export function collectTokenUsageSnapshot(): TokenUsageCollectorResult {
   const periodEnd = collectedAt
   const periodStart = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString()
   const errors: string[] = []
-  const binary = findOpencodeBinary()
-  if (!binary) {
-    errors.push('OpenCode binary not found: no opencode binary available')
-    return { periodStart, periodEnd, source: 'opencode', toolName: 'opencode', totalSessions: 0, totalMessages: 0, totalTokens: 0, totalCost: null, modelUsage: [], rawJson: null, collectedAt, errors }
+
+  const db = connectOpencodeDb()
+  if (!db) {
+    errors.push('OpenCode DB not found: unable to connect to opencode.db')
+    return { periodStart, periodEnd, source: 'opencodedb', toolName: 'opencode', totalSessions: 0, totalMessages: 0, totalTokens: 0, totalCost: null, modelUsage: [], rawJson: null, collectedAt, errors }
   }
-  try {
-    const stdout = execFileSync(binary, ['stats', '--days', '28', '--models'], { timeout: 15000, encoding: 'utf-8', stdio: ['pipe','pipe','ignore'] })
-    const parsed = parseTokenUsage(stdout)
-    return { periodStart, periodEnd, source: 'opencode', toolName: 'opencode', ...parsed, collectedAt, errors: [] }
-  } catch (err) {
-    if (isCommandNotFound(err)) {
-      errors.push('OpenCode binary not found: no opencode binary available')
-      return { periodStart, periodEnd, source: 'opencode', toolName: 'opencode', totalSessions: 0, totalMessages: 0, totalTokens: 0, totalCost: null, modelUsage: [], rawJson: null, collectedAt, errors }
-    }
-    errors.push(`OpenCode stats collector failed: ${err instanceof Error ? err.message : String(err)}`)
-    return { periodStart, periodEnd, source: 'opencode', toolName: 'opencode', totalSessions: 0, totalMessages: 0, totalTokens: 0, totalCost: null, modelUsage: [], rawJson: null, collectedAt, errors }
+  db.close()
+
+  const since = Date.now() - 28 * 24 * 60 * 60 * 1000
+
+  const dailyAggs = querySessionsByDay(28)
+  const totalSessions = dailyAggs.reduce((sum, d) => sum + d.sessions, 0)
+  const totalTokens = dailyAggs.reduce((sum, d) => sum + d.tokensInput + d.tokensOutput, 0)
+  const totalCost = dailyAggs.reduce((sum, d) => sum + d.cost, 0)
+
+  const models = queryModelBreakdown(since)
+  const modelUsage = models.map(m => ({
+    modelName: m.modelName,
+    messages: m.messages,
+    inputTokens: m.inputTokens,
+    outputTokens: m.outputTokens,
+    cacheReadTokens: m.cacheReadTokens,
+    cacheWriteTokens: m.cacheWriteTokens,
+    cost: m.cost,
+  }))
+
+  return {
+    periodStart,
+    periodEnd,
+    source: 'opencodedb',
+    toolName: 'opencode',
+    totalSessions,
+    totalMessages: totalSessions, // approximation per spec
+    totalTokens,
+    totalCost,
+    modelUsage,
+    rawJson: null,
+    collectedAt,
+    errors: [],
   }
 }

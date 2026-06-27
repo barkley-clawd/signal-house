@@ -24,7 +24,7 @@ jest.mock('../../opencode/collector', () => ({
   collectTokenUsageSnapshot: jest.fn().mockReturnValue({
     periodStart: '2026-05-22T12:00:00.000Z',
     periodEnd: '2026-06-19T12:00:00.000Z',
-    source: 'opencode',
+    source: 'opencodedb',
     toolName: 'opencode',
     totalSessions: 0,
     totalMessages: 0,
