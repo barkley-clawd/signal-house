@@ -10,6 +10,7 @@ import {
   queryParentChildCounts,
   querySessions,
   querySessionsByDay,
+  queryToolUsage,
 } from '../db-collector'
 
 let tempDir: string | null = null
@@ -44,6 +45,15 @@ function createSchema(db: Database.Database): void {
       id TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
       time_created INTEGER NOT NULL
+    );
+
+    CREATE TABLE part (
+      id TEXT PRIMARY KEY,
+      message_id TEXT,
+      session_id TEXT NOT NULL,
+      time_created INTEGER,
+      time_updated INTEGER,
+      data TEXT
     );
   `)
 }
@@ -95,6 +105,15 @@ function insertSession(db: Database.Database, row: {
 
 function insertMessage(db: Database.Database, id: string, sessionId: string, timeCreated: number): void {
   db.prepare('INSERT INTO message (id, session_id, time_created) VALUES (?, ?, ?)').run(id, sessionId, timeCreated)
+}
+
+function insertPart(db: Database.Database, id: string, sessionId: string, data: Record<string, unknown>, timeCreated?: number): void {
+  db.prepare('INSERT INTO part (id, session_id, time_created, data) VALUES (?, ?, ?, ?)').run(
+    id,
+    sessionId,
+    timeCreated ?? Date.now(),
+    JSON.stringify(data),
+  )
 }
 
 function utc(year: number, month: number, day: number, hour = 0, minute = 0, second = 0): number {
@@ -367,6 +386,64 @@ describe('opencode db collector', () => {
     })
   })
 
+  describe('queryToolUsage', () => {
+    it('returns an empty array when there are no tool parts', () => {
+      expect(queryToolUsage(utc(2026, 6, 26), undefined, { dbPath: dbPath ?? undefined })).toEqual([])
+    })
+
+    it('aggregates tool usage by tool name', () => {
+      const db = new Database(dbPath ?? '')
+      insertPart(db, 'part-1', 'ses-001', { type: 'tool', tool: 'read_file' })
+      insertPart(db, 'part-2', 'ses-001', { type: 'tool', tool: 'read_file' })
+      insertPart(db, 'part-3', 'ses-001', { type: 'tool', tool: 'write_file' })
+      insertPart(db, 'part-4', 'ses-002', { type: 'tool', tool: 'read_file' })
+      insertPart(db, 'part-5', 'ses-003', { type: 'tool', tool: 'bash' })
+      insertPart(db, 'part-6', 'ses-003', { type: 'tool', tool: 'bash' })
+      insertPart(db, 'part-7', 'ses-003', { type: 'tool', tool: 'bash' })
+      insertPart(db, 'part-8', 'ses-003', { type: 'text', content: 'ignored' })
+      db.close()
+
+      const rows = queryToolUsage(utc(2026, 6, 26), undefined, { dbPath: dbPath ?? undefined })
+      expect(rows).toEqual([
+        { toolName: 'bash', count: 3 },
+        { toolName: 'read_file', count: 3 },
+        { toolName: 'write_file', count: 1 },
+      ])
+    })
+
+    it('filters by session.time_created (since)', () => {
+      const db = new Database(dbPath ?? '')
+      insertPart(db, 'part-1', 'ses-001', { type: 'tool', tool: 'read_file' })
+      insertPart(db, 'part-2', 'ses-003', { type: 'tool', tool: 'bash' })
+      db.close()
+
+      const rows = queryToolUsage(utc(2026, 6, 27), undefined, { dbPath: dbPath ?? undefined })
+      expect(rows).toEqual([{ toolName: 'bash', count: 1 }])
+    })
+
+    it('filters by the optional until boundary', () => {
+      const db = new Database(dbPath ?? '')
+      insertPart(db, 'part-1', 'ses-001', { type: 'tool', tool: 'read_file' })
+      insertPart(db, 'part-2', 'ses-003', { type: 'tool', tool: 'bash' })
+      insertPart(db, 'part-3', 'ses-005', { type: 'tool', tool: 'edit' })
+      db.close()
+
+      const rows = queryToolUsage(
+        utc(2026, 6, 26),
+        utc(2026, 6, 28),
+        { dbPath: dbPath ?? undefined },
+      )
+      expect(rows).toEqual([
+        { toolName: 'bash', count: 1 },
+        { toolName: 'read_file', count: 1 },
+      ])
+    })
+
+    it('returns an empty array for missing or corrupt databases', () => {
+      expect(queryToolUsage(0, undefined, { dbPath: path.join(tempDir ?? '', 'missing.db') })).toEqual([])
+    })
+  })
+
   it('falls back to empty results for missing or corrupt databases', () => {
     expect(connectOpencodeDb({ dbPath: path.join(tempDir ?? '', 'missing.db') })).toBeNull()
 
@@ -379,6 +456,7 @@ describe('opencode db collector', () => {
     expect(querySessionsByDay(30, { dbPath: corruptPath })).toEqual([])
     expect(queryModelBreakdown(0, undefined, { dbPath: corruptPath })).toEqual([])
     expect(queryAgentBreakdown(0, undefined, { dbPath: corruptPath })).toEqual([])
+    expect(queryToolUsage(0, undefined, { dbPath: corruptPath })).toEqual([])
     expect(queryParentChildCounts(0, undefined, { dbPath: corruptPath })).toEqual({ primarySessions: 0, subagentSessions: 0 })
   })
 })

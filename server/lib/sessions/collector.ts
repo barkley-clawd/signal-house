@@ -5,6 +5,7 @@ import {
   queryModelBreakdown,
   querySessions,
   querySessionsByDay,
+  queryToolUsage,
 } from '../opencode/db-collector'
 import type { SessionCollectorConfig, SessionCollectorResult } from './types'
 
@@ -44,8 +45,10 @@ export function createSessionCollector(config: SessionCollectorConfig = {}) {
         const sessionsByDay = querySessionsByDay(periodDays, dbConfig)
         const sessions = querySessions(since, now, dbConfig)
         const modelUsage = queryModelBreakdown(since, now, dbConfig)
+        const toolUsageData = queryToolUsage(since, now, dbConfig)
 
         const totalSessions = sessions.length
+        const totalToolCalls = toolUsageData.reduce((sum, t) => sum + t.count, 0)
         const totalCost = sum(sessionsByDay.map(day => day.cost))
         const activeDays = sessionsByDay.length
         const messages = sum(modelUsage.map(model => model.messages))
@@ -80,10 +83,17 @@ export function createSessionCollector(config: SessionCollectorConfig = {}) {
           outputTokens,
           cacheReadTokens,
           cacheWriteTokens,
-          uniqueTools: [],
-          toolUsage: [],
+          uniqueTools: toolUsageData.map(t => t.toolName),
+          toolUsage: toolUsageData.map(t => ({
+            toolName: t.toolName,
+            count: t.count,
+            percentage: totalToolCalls > 0 ? Math.round((t.count / totalToolCalls) * 10000) / 100 : null,
+          })),
           modelUsage,
-          topActions: [],
+          topActions: toolUsageData.map(t => ({
+            action: t.toolName,
+            count: t.count,
+          })),
           errorCount: 0,
         }
 
