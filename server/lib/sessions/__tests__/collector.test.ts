@@ -219,7 +219,7 @@ describe('createSessionCollector', () => {
       totalSessions: 3,
       startedSessions: 3,
       completedSessions: 2,
-      erroredSessions: 1,
+      erroredSessions: null,
       stuckSessions: null,
       lastActivityAt: '2026-06-27T12:30:00.000Z',
       messages: 6,
