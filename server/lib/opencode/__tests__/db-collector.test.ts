@@ -1,0 +1,384 @@
+import Database from 'better-sqlite3'
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import {
+  connectOpencodeDb,
+  queryAgentBreakdown,
+  queryModelBreakdown,
+  queryParentChildCounts,
+  querySessions,
+  querySessionsByDay,
+} from '../db-collector'
+
+let tempDir: string | null = null
+let dbPath: string | null = null
+
+function createSchema(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE session (
+      id TEXT PRIMARY KEY,
+      slug TEXT NOT NULL,
+      agent TEXT,
+      model TEXT,
+      cost REAL,
+      tokens_input INTEGER,
+      tokens_output INTEGER,
+      tokens_reasoning INTEGER,
+      tokens_cache_read INTEGER,
+      tokens_cache_write INTEGER,
+      time_created INTEGER NOT NULL,
+      time_updated INTEGER NOT NULL,
+      project_id TEXT NOT NULL,
+      parent_id TEXT,
+      status TEXT,
+      error TEXT,
+      time_completed INTEGER,
+      completed_at INTEGER,
+      time_errored INTEGER,
+      errored_at INTEGER
+    );
+
+    CREATE TABLE message (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      time_created INTEGER NOT NULL
+    );
+  `)
+}
+
+function insertSession(db: Database.Database, row: {
+  id: string
+  slug: string
+  agent: string | null
+  model: string | null
+  cost: number
+  tokensInput: number
+  tokensOutput: number
+  tokensReasoning: number
+  tokensCacheRead: number
+  tokensCacheWrite: number
+  timeCreated: number
+  timeUpdated: number
+  projectId: string
+  parentId: string | null
+  status?: string | null
+  error?: string | null
+  timeCompleted?: number | null
+  completedAt?: number | null
+  timeErrored?: number | null
+  erroredAt?: number | null
+}): void {
+  const params = {
+    ...row,
+    status: row.status ?? null,
+    error: row.error ?? null,
+    timeCompleted: row.timeCompleted ?? null,
+    completedAt: row.completedAt ?? null,
+    timeErrored: row.timeErrored ?? null,
+    erroredAt: row.erroredAt ?? null,
+  }
+
+  db.prepare(`
+    INSERT INTO session (
+      id, slug, agent, model, cost, tokens_input, tokens_output, tokens_reasoning,
+      tokens_cache_read, tokens_cache_write, time_created, time_updated, project_id,
+      parent_id, status, error, time_completed, completed_at, time_errored, errored_at
+    ) VALUES (
+      @id, @slug, @agent, @model, @cost, @tokensInput, @tokensOutput, @tokensReasoning,
+      @tokensCacheRead, @tokensCacheWrite, @timeCreated, @timeUpdated, @projectId,
+      @parentId, @status, @error, @timeCompleted, @completedAt, @timeErrored, @erroredAt
+    )
+  `).run(params)
+}
+
+function insertMessage(db: Database.Database, id: string, sessionId: string, timeCreated: number): void {
+  db.prepare('INSERT INTO message (id, session_id, time_created) VALUES (?, ?, ?)').run(id, sessionId, timeCreated)
+}
+
+function utc(year: number, month: number, day: number, hour = 0, minute = 0, second = 0): number {
+  return Date.UTC(year, month - 1, day, hour, minute, second)
+}
+
+beforeEach(() => {
+  tempDir = mkdtempSync(path.join(os.tmpdir(), 'opencode-db-collector-'))
+  dbPath = path.join(tempDir, 'opencode.db')
+  const db = new Database(dbPath)
+  createSchema(db)
+
+  insertSession(db, {
+    id: 'ses-001',
+    slug: 'root-1',
+    agent: 'explorer',
+    model: JSON.stringify({ id: 'claude-4', providerID: 'anthropic' }),
+    cost: 1.25,
+    tokensInput: 120,
+    tokensOutput: 80,
+    tokensReasoning: 30,
+    tokensCacheRead: 10,
+    tokensCacheWrite: 5,
+    timeCreated: utc(2026, 6, 26, 23, 30),
+    timeUpdated: utc(2026, 6, 27, 0, 10),
+    projectId: 'project-a',
+    parentId: null,
+    status: 'completed',
+    timeCompleted: utc(2026, 6, 27, 0, 10),
+  })
+
+  insertSession(db, {
+    id: 'ses-002',
+    slug: 'root-2',
+    agent: 'explorer',
+    model: JSON.stringify({ id: 'claude-4', providerID: 'anthropic' }),
+    cost: 0,
+    tokensInput: 0,
+    tokensOutput: 0,
+    tokensReasoning: 0,
+    tokensCacheRead: 0,
+    tokensCacheWrite: 0,
+    timeCreated: utc(2026, 6, 27, 0, 5),
+    timeUpdated: utc(2026, 6, 27, 0, 5),
+    projectId: 'project-a',
+    parentId: null,
+    status: 'errored',
+    error: 'boom',
+    timeErrored: utc(2026, 6, 27, 0, 6),
+  })
+
+  insertSession(db, {
+    id: 'ses-003',
+    slug: 'root-3',
+    agent: 'planner',
+    model: 'gpt-4.1',
+    cost: 2,
+    tokensInput: 300,
+    tokensOutput: 200,
+    tokensReasoning: 50,
+    tokensCacheRead: 40,
+    tokensCacheWrite: 20,
+    timeCreated: utc(2026, 6, 27, 12, 0),
+    timeUpdated: utc(2026, 6, 27, 12, 30),
+    projectId: 'project-a',
+    parentId: null,
+    status: 'completed',
+    completedAt: utc(2026, 6, 27, 12, 30),
+  })
+
+  insertSession(db, {
+    id: 'ses-004',
+    slug: 'child-1',
+    agent: 'subagent',
+    model: null,
+    cost: 0.1,
+    tokensInput: 15,
+    tokensOutput: 5,
+    tokensReasoning: 0,
+    tokensCacheRead: 0,
+    tokensCacheWrite: 0,
+    timeCreated: utc(2026, 6, 27, 13, 0),
+    timeUpdated: utc(2026, 6, 27, 13, 2),
+    projectId: 'project-a',
+    parentId: 'ses-001',
+    status: 'completed',
+    timeCompleted: utc(2026, 6, 27, 13, 2),
+  })
+
+  insertSession(db, {
+    id: 'ses-005',
+    slug: 'root-4',
+    agent: 'explorer',
+    model: JSON.stringify({ modelID: 'old-model', providerID: 'openai' }),
+    cost: 0.5,
+    tokensInput: 50,
+    tokensOutput: 25,
+    tokensReasoning: 10,
+    tokensCacheRead: 2,
+    tokensCacheWrite: 1,
+    timeCreated: utc(2026, 6, 28, 1, 0),
+    timeUpdated: utc(2026, 6, 28, 1, 3),
+    projectId: 'project-b',
+    parentId: null,
+    status: 'completed',
+    completedAt: utc(2026, 6, 28, 1, 3),
+  })
+
+  insertSession(db, {
+    id: 'ses-006',
+    slug: 'root-5',
+    agent: 'planner',
+    model: JSON.stringify({ id: 'claude-4', providerID: 'anthropic', variant: 'default' }),
+    cost: 0.75,
+    tokensInput: 60,
+    tokensOutput: 40,
+    tokensReasoning: 5,
+    tokensCacheRead: 8,
+    tokensCacheWrite: 4,
+    timeCreated: utc(2026, 6, 28, 2, 0),
+    timeUpdated: utc(2026, 6, 28, 2, 0),
+    projectId: 'project-b',
+    parentId: null,
+  })
+
+  insertMessage(db, 'msg-1', 'ses-001', utc(2026, 6, 26, 23, 30))
+  insertMessage(db, 'msg-2', 'ses-001', utc(2026, 6, 26, 23, 31))
+  insertMessage(db, 'msg-3', 'ses-001', utc(2026, 6, 26, 23, 32))
+  insertMessage(db, 'msg-4', 'ses-002', utc(2026, 6, 27, 0, 5))
+  insertMessage(db, 'msg-5', 'ses-003', utc(2026, 6, 27, 12, 0))
+  insertMessage(db, 'msg-6', 'ses-003', utc(2026, 6, 27, 12, 2))
+  insertMessage(db, 'msg-7', 'ses-004', utc(2026, 6, 27, 13, 0))
+  insertMessage(db, 'msg-8', 'ses-005', utc(2026, 6, 28, 1, 0))
+  insertMessage(db, 'msg-9', 'ses-005', utc(2026, 6, 28, 1, 1))
+  insertMessage(db, 'msg-10', 'ses-006', utc(2026, 6, 28, 2, 0))
+
+  db.close()
+})
+
+afterEach(() => {
+  if (tempDir) rmSync(tempDir, { recursive: true, force: true })
+  tempDir = null
+  dbPath = null
+})
+
+describe('opencode db collector', () => {
+  it('connects to a valid opencode db in read-only mode', () => {
+    const db = connectOpencodeDb({ dbPath: dbPath ?? undefined })
+    expect(db).not.toBeNull()
+    db?.close()
+  })
+
+  it('returns sessions ordered by timeCreated descending', () => {
+    const rows = querySessions(utc(2026, 6, 26), undefined, { dbPath: dbPath ?? undefined })
+    expect(rows).toHaveLength(6)
+    expect(rows[0]!.id).toBe('ses-006')
+    expect(rows[1]!.id).toBe('ses-005')
+    expect(rows.at(-1)!.id).toBe('ses-001')
+    expect(rows.find(row => row.id === 'ses-004')!.parentId).toBe('ses-001')
+    expect(rows.find(row => row.id === 'ses-004')!.model).toBeNull()
+  })
+
+  it('aggregates sessions by utc day', () => {
+    jest.spyOn(Date, 'now').mockReturnValue(utc(2026, 6, 28, 12, 0))
+
+    const rows = querySessionsByDay(7, { dbPath: dbPath ?? undefined })
+    expect(rows).toEqual([
+      {
+        day: '2026-06-28',
+        sessions: 2,
+        startedSessions: 2,
+        completedSessions: 1,
+        erroredSessions: 0,
+        cost: 1.25,
+        tokensInput: 110,
+        tokensOutput: 65,
+        tokensReasoning: 15,
+        tokensCacheRead: 10,
+        tokensCacheWrite: 5,
+      },
+      {
+        day: '2026-06-27',
+        sessions: 3,
+        startedSessions: 3,
+        completedSessions: 2,
+        erroredSessions: 1,
+        cost: 2.1,
+        tokensInput: 315,
+        tokensOutput: 205,
+        tokensReasoning: 50,
+        tokensCacheRead: 40,
+        tokensCacheWrite: 20,
+      },
+      {
+        day: '2026-06-26',
+        sessions: 1,
+        startedSessions: 1,
+        completedSessions: 1,
+        erroredSessions: 0,
+        cost: 1.25,
+        tokensInput: 120,
+        tokensOutput: 80,
+        tokensReasoning: 30,
+        tokensCacheRead: 10,
+        tokensCacheWrite: 5,
+      },
+    ])
+    jest.restoreAllMocks()
+  })
+
+  it('aggregates sessions by model and includes message counts', () => {
+    const rows = queryModelBreakdown(utc(2026, 6, 26), undefined, { dbPath: dbPath ?? undefined })
+    expect(rows).toEqual([
+      {
+        modelName: 'claude-4',
+        sessions: 3,
+        messages: 5,
+        inputTokens: 180,
+        outputTokens: 120,
+        cacheReadTokens: 18,
+        cacheWriteTokens: 9,
+        cost: 2,
+      },
+      {
+        modelName: 'gpt-4.1',
+        sessions: 1,
+        messages: 2,
+        inputTokens: 300,
+        outputTokens: 200,
+        cacheReadTokens: 40,
+        cacheWriteTokens: 20,
+        cost: 2,
+      },
+      {
+        modelName: 'old-model',
+        sessions: 1,
+        messages: 2,
+        inputTokens: 50,
+        outputTokens: 25,
+        cacheReadTokens: 2,
+        cacheWriteTokens: 1,
+        cost: 0.5,
+      },
+      {
+        modelName: '(unknown)',
+        sessions: 1,
+        messages: 1,
+        inputTokens: 15,
+        outputTokens: 5,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        cost: 0.1,
+      },
+    ])
+  })
+
+  it('aggregates sessions by agent', () => {
+    const rows = queryAgentBreakdown(utc(2026, 6, 26), undefined, { dbPath: dbPath ?? undefined })
+    expect(rows).toEqual([
+      { agent: 'explorer', sessions: 3 },
+      { agent: 'planner', sessions: 2 },
+      { agent: 'subagent', sessions: 1 },
+    ])
+  })
+
+  it('counts root sessions vs subagent sessions', () => {
+    expect(queryParentChildCounts(utc(2026, 6, 26), undefined, { dbPath: dbPath ?? undefined })).toEqual({
+      primarySessions: 5,
+      subagentSessions: 1,
+    })
+  })
+
+  it('falls back to empty results for missing or corrupt databases', () => {
+    expect(connectOpencodeDb({ dbPath: path.join(tempDir ?? '', 'missing.db') })).toBeNull()
+
+    const corruptPath = path.join(tempDir ?? '', 'corrupt.db')
+    rmSync(corruptPath, { force: true })
+    writeFileSync(corruptPath, Buffer.from('not sqlite'))
+
+    expect(connectOpencodeDb({ dbPath: corruptPath })).toBeNull()
+    expect(querySessions(0, undefined, { dbPath: corruptPath })).toEqual([])
+    expect(querySessionsByDay(30, { dbPath: corruptPath })).toEqual([])
+    expect(queryModelBreakdown(0, undefined, { dbPath: corruptPath })).toEqual([])
+    expect(queryAgentBreakdown(0, undefined, { dbPath: corruptPath })).toEqual([])
+    expect(queryParentChildCounts(0, undefined, { dbPath: corruptPath })).toEqual({ primarySessions: 0, subagentSessions: 0 })
+  })
+})
