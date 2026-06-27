@@ -38,6 +38,15 @@ function createSchema(db: Database.Database): void {
       session_id TEXT NOT NULL,
       time_created INTEGER NOT NULL
     );
+
+    CREATE TABLE part (
+      id TEXT PRIMARY KEY,
+      message_id TEXT,
+      session_id TEXT NOT NULL,
+      time_created INTEGER,
+      time_updated INTEGER,
+      data TEXT
+    );
   `)
 }
 
@@ -86,6 +95,15 @@ function insertSession(db: Database.Database, row: {
 
 function insertMessage(db: Database.Database, id: string, sessionId: string, timeCreated: number): void {
   db.prepare('INSERT INTO message (id, session_id, time_created) VALUES (?, ?, ?)').run(id, sessionId, timeCreated)
+}
+
+function insertPart(db: Database.Database, id: string, sessionId: string, data: Record<string, unknown>, timeCreated?: number): void {
+  db.prepare('INSERT INTO part (id, session_id, time_created, data) VALUES (?, ?, ?, ?)').run(
+    id,
+    sessionId,
+    timeCreated ?? Date.now(),
+    JSON.stringify(data),
+  )
 }
 
 function utc(year: number, month: number, day: number, hour = 0, minute = 0, second = 0): number {
@@ -176,6 +194,16 @@ describe('createSessionCollector', () => {
     insertMessage(db, 'msg-5', 'ses-003', utc(2026, 6, 27, 12, 2))
     insertMessage(db, 'msg-6', 'ses-003', utc(2026, 6, 27, 12, 4))
 
+    insertPart(db, 'part-1', 'ses-001', { type: 'tool', tool: 'read_file' }, utc(2026, 6, 26, 23, 31))
+    insertPart(db, 'part-2', 'ses-001', { type: 'tool', tool: 'read_file' }, utc(2026, 6, 26, 23, 32))
+    insertPart(db, 'part-3', 'ses-001', { type: 'tool', tool: 'write_file' }, utc(2026, 6, 26, 23, 33))
+    insertPart(db, 'part-4', 'ses-002', { type: 'tool', tool: 'read_file' }, utc(2026, 6, 27, 0, 6))
+    insertPart(db, 'part-5', 'ses-003', { type: 'tool', tool: 'bash' }, utc(2026, 6, 27, 12, 1))
+    insertPart(db, 'part-6', 'ses-003', { type: 'tool', tool: 'bash' }, utc(2026, 6, 27, 12, 2))
+    insertPart(db, 'part-7', 'ses-003', { type: 'tool', tool: 'bash' }, utc(2026, 6, 27, 12, 3))
+    insertPart(db, 'part-8', 'ses-003', { type: 'tool', tool: 'bash' }, utc(2026, 6, 27, 12, 4))
+    insertPart(db, 'part-9', 'ses-003', { type: 'text', content: 'ignored' }, utc(2026, 6, 27, 12, 5))
+
     db.close()
 
     jest.spyOn(Date, 'now').mockReturnValue(utc(2026, 6, 28, 12, 0))
@@ -204,9 +232,17 @@ describe('createSessionCollector', () => {
       outputTokens: 280,
       cacheReadTokens: 50,
       cacheWriteTokens: 25,
-      uniqueTools: [],
-      toolUsage: [],
-      topActions: [],
+      uniqueTools: ['bash', 'read_file', 'write_file'],
+      toolUsage: [
+        { toolName: 'bash', count: 4, percentage: 50 },
+        { toolName: 'read_file', count: 3, percentage: 37.5 },
+        { toolName: 'write_file', count: 1, percentage: 12.5 },
+      ],
+      topActions: [
+        { action: 'bash', count: 4 },
+        { action: 'read_file', count: 3 },
+        { action: 'write_file', count: 1 },
+      ],
       errorCount: 0,
     })
     expect(result.sessionUsage!.modelUsage).toEqual([

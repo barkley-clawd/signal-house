@@ -53,6 +53,11 @@ export interface AgentBreakdownEntry {
   sessions: number
 }
 
+export interface ToolUsageEntry {
+  toolName: string
+  count: number
+}
+
 export interface ParentChildCounts {
   primarySessions: number
   subagentSessions: number
@@ -369,6 +374,40 @@ export function queryAgentBreakdown(since: number, until?: number, config?: Open
   }
 
   return [...grouped.values()].sort((a, b) => b.sessions - a.sessions || compareLabels(a.agent, b.agent))
+}
+
+export function queryToolUsage(since: number, until?: number, config?: OpencodeDbConfig): ToolUsageEntry[] {
+  const db = connectOpencodeDb(config)
+  if (!db) return []
+
+  try {
+    const clauses = ['p.session_id = s.id', 's.time_created >= ?']
+    const params: Array<number> = [since]
+    if (until != null) {
+      clauses.push('s.time_created < ?')
+      params.push(until)
+    }
+
+    const rows = db.prepare(`
+      SELECT json_extract(p.data, '$.tool') AS tool_name,
+             COUNT(*) AS count
+      FROM part p
+      JOIN session s ON p.session_id = s.id
+      WHERE ${clauses.join(' AND ')}
+        AND json_extract(p.data, '$.type') = 'tool'
+      GROUP BY tool_name
+      ORDER BY count DESC, tool_name ASC
+    `).all(...params) as Array<{ tool_name: string; count: number }>
+
+    return rows.map(row => ({
+      toolName: row.tool_name || '(unknown)',
+      count: row.count,
+    }))
+  } catch {
+    return []
+  } finally {
+    db.close()
+  }
 }
 
 export function queryParentChildCounts(since: number, until?: number, config?: OpencodeDbConfig): ParentChildCounts {
