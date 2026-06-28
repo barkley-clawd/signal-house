@@ -132,6 +132,12 @@ Runtime defaults are centralized in `server/lib/runtime-config.ts`.
 
 Run exactly one poller-enabled Signal House daemon per machine.
 
+### Attention Queue
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `SECRET_HOUSE_SHOW_PRIVATE_REPO_ITEMS` | Include issues and PRs from private GitHub repos in the Attention Queue. When `false`, private-repo items are hidden from the queue only; all dashboard stats remain unchanged. | `false` |
+
 ### Access Protection
 
 If binding to LAN, enable lightweight HTTP Basic auth:

@@ -56,6 +56,7 @@ export interface RepositoryIdentity {
   githubOwner: string | null
   githubRepo: string | null
   source: 'local' | 'github' | 'both'
+  isPrivate?: boolean
 }
 
 export interface RepositoryMetric extends RepositoryIdentity {

@@ -1,6 +1,7 @@
 import { GET } from "./route";
 import { getDailyMetricsRange, getDailyTokenUsageRange, getLatestState } from "../../../../../server/db/client";
 import { buildDashboardWindow } from "../../../../../server/lib/dashboard-state";
+import { getShowPrivateRepoItems } from "../../../../../server/lib/runtime-config";
 import type { DashboardWindow, LatestState } from "@/types";
 
 jest.mock("../../../../../server/db/client", () => ({
@@ -16,6 +17,7 @@ jest.mock("../../../../../server/lib/dashboard-state", () => ({
 
 jest.mock("../../../../../server/lib/runtime-config", () => ({
   getDashboardWindowDays: jest.fn(() => 28),
+  getShowPrivateRepoItems: jest.fn(() => false),
 }));
 
 function makeLatestState(): LatestState {
@@ -275,5 +277,126 @@ describe("GET /api/state", () => {
     expect(getDailyMetricsRange).toHaveBeenCalledTimes(1);
     expect(body.summary.throughput.totalCommits).toBe(5);
     expect(body).not.toHaveProperty("selectedRepoKey");
+  });
+
+  it("hides private repo issues from the attention queue by default", async () => {
+    const state = makeLatestState();
+    state.snapshot!.repositories = [
+      { repoKey: "github:demo/repo", name: "demo/repo", localPath: null, remoteUrl: null, githubOwner: "demo", githubRepo: "repo", source: "github", isPrivate: false },
+      { repoKey: "github:demo/secret", name: "demo/secret", localPath: null, remoteUrl: null, githubOwner: "demo", githubRepo: "secret", source: "github", isPrivate: true },
+    ];
+    state.snapshot!.issues = [
+      {
+        id: "issue-1",
+        title: "Public issue",
+        state: "open",
+        createdAt: "2026-06-01T00:00:00.000Z",
+        updatedAt: "2026-06-01T00:00:00.000Z",
+        closedAt: null,
+        repo: "demo/repo",
+        repoKey: "github:demo/repo",
+        labels: [],
+        assignee: null,
+        milestone: null,
+        url: "https://example.test/issues/1",
+      },
+      {
+        id: "issue-2",
+        title: "Private issue",
+        state: "open",
+        createdAt: "2026-06-01T00:00:00.000Z",
+        updatedAt: "2026-06-01T00:00:00.000Z",
+        closedAt: null,
+        repo: "demo/secret",
+        repoKey: "github:demo/secret",
+        labels: [],
+        assignee: null,
+        milestone: null,
+        url: "https://example.test/issues/2",
+      },
+    ];
+    state.snapshot!.pullRequests = [
+      {
+        id: "pr-1",
+        title: "Private PR",
+        state: "open",
+        createdAt: "2026-06-01T00:00:00.000Z",
+        updatedAt: "2026-06-01T00:00:00.000Z",
+        headSha: null,
+        mergedAt: null,
+        closedAt: null,
+        repo: "demo/secret",
+        repoKey: "github:demo/secret",
+        author: "alice",
+        labels: [],
+        additions: null,
+        deletions: null,
+        changedFiles: null,
+        url: "https://example.test/pulls/1",
+        ciStatus: null,
+      },
+    ];
+    (getLatestState as jest.Mock).mockReturnValue(state);
+    (getShowPrivateRepoItems as jest.Mock).mockReturnValue(false);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.attention.items).toHaveLength(1);
+    expect(body.attention.items[0]).toMatchObject({
+      id: "issue-github:demo/repo-issue-1",
+      kind: "issue",
+      title: "Public issue",
+      repo: "demo/repo",
+    });
+  });
+
+  it("includes private repo issues when SECRET_HOUSE_SHOW_PRIVATE_REPO_ITEMS=true", async () => {
+    const state = makeLatestState();
+    state.snapshot!.repositories = [
+      { repoKey: "github:demo/repo", name: "demo/repo", localPath: null, remoteUrl: null, githubOwner: "demo", githubRepo: "repo", source: "github", isPrivate: false },
+      { repoKey: "github:demo/secret", name: "demo/secret", localPath: null, remoteUrl: null, githubOwner: "demo", githubRepo: "secret", source: "github", isPrivate: true },
+    ];
+    state.snapshot!.issues = [
+      {
+        id: "issue-1",
+        title: "Public issue",
+        state: "open",
+        createdAt: "2026-06-01T00:00:00.000Z",
+        updatedAt: "2026-06-01T00:00:00.000Z",
+        closedAt: null,
+        repo: "demo/repo",
+        repoKey: "github:demo/repo",
+        labels: [],
+        assignee: null,
+        milestone: null,
+        url: "https://example.test/issues/1",
+      },
+      {
+        id: "issue-2",
+        title: "Private issue",
+        state: "open",
+        createdAt: "2026-06-01T00:00:00.000Z",
+        updatedAt: "2026-06-01T00:00:00.000Z",
+        closedAt: null,
+        repo: "demo/secret",
+        repoKey: "github:demo/secret",
+        labels: [],
+        assignee: null,
+        milestone: null,
+        url: "https://example.test/issues/2",
+      },
+    ];
+    (getLatestState as jest.Mock).mockReturnValue(state);
+    (getShowPrivateRepoItems as jest.Mock).mockReturnValue(true);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.attention.items).toHaveLength(2);
+    const repos = body.attention.items.map((item: { repo: string }) => item.repo);
+    expect(repos).toEqual(expect.arrayContaining(["demo/repo", "demo/secret"]));
   });
 });

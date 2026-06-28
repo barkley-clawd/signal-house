@@ -8,6 +8,7 @@ import {
   getRetentionConfig,
   getRuntimeConfig,
   getSessionPeriodDays,
+  getShowPrivateRepoItems,
   getStaleThresholdMs,
 } from '../runtime-config'
 
@@ -27,6 +28,7 @@ const ENV_KEYS = [
   'SECRET_HOUSE_RETENTION_DAILY_METRICS_DAYS',
   'SECRET_HOUSE_RETENTION_SESSIONS_DAYS',
   'SECRET_HOUSE_RETENTION_WORKFLOW_RUNS_DAYS',
+  'SECRET_HOUSE_SHOW_PRIVATE_REPO_ITEMS',
 ]
 
 describe('runtime config', () => {
@@ -84,6 +86,9 @@ describe('runtime config', () => {
       },
       discovery: {
         maxDepth: 3,
+      },
+      attention: {
+        showPrivateRepoItems: false,
       },
       retention: {
         snapshotsDays: 30,
@@ -146,5 +151,15 @@ describe('runtime config', () => {
       sessionsDays: 45,
       workflowRunsDays: 120,
     })
+  })
+
+  it('hides private repo items from the attention queue by default', () => {
+    expect(getShowPrivateRepoItems()).toBe(false)
+  })
+
+  it('shows private repo items when SECRET_HOUSE_SHOW_PRIVATE_REPO_ITEMS=true', () => {
+    process.env['SECRET_HOUSE_SHOW_PRIVATE_REPO_ITEMS'] = 'true'
+    expect(getShowPrivateRepoItems()).toBe(true)
+    expect(getRuntimeConfig().attention.showPrivateRepoItems).toBe(true)
   })
 })

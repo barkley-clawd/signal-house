@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getLatestState, getDailyMetricsRange, getDailyTokenUsageRange } from "../../../../../server/db/client";
 import { buildDashboardWindow } from "../../../../../server/lib/dashboard-state";
-import { getDashboardWindowDays } from "../../../../../server/lib/runtime-config";
+import { getDashboardWindowDays, getShowPrivateRepoItems } from "../../../../../server/lib/runtime-config";
 import { ensureDb } from "../_lib/ensure-db";
-import type { DashboardAttentionItem, DashboardStateResponse, IssueMetric, PullRequestMetric } from "@/types";
+import type { DashboardAttentionItem, DashboardStateResponse, IssueMetric, PullRequestMetric, RepositoryIdentity } from "@/types";
 
 const STALE_THRESHOLD_DAYS_FALLBACK = 14;
 
@@ -13,16 +13,30 @@ function daysSince(dateStr: string, nowMs: number): number {
   return Math.max(0, Math.floor((nowMs - updated) / 86_400_000));
 }
 
+function buildPrivateRepoKeySet(
+  repositories: RepositoryIdentity[],
+): Set<string> {
+  const keys = new Set<string>();
+  for (const repo of repositories) {
+    if (repo.isPrivate === true) {
+      keys.add(repo.repoKey);
+    }
+  }
+  return keys;
+}
+
 function buildAttentionItems(
   issues: IssueMetric[],
   pullRequests: PullRequestMetric[],
   nowMs: number,
   staleThresholdDays: number,
+  privateRepoKeys: Set<string>,
 ): DashboardAttentionItem[] {
   const items: DashboardAttentionItem[] = [];
 
   for (const issue of issues) {
     if (issue.state !== "open") continue;
+    if (privateRepoKeys.has(issue.repoKey)) continue;
     const ageDays = daysSince(issue.updatedAt, nowMs);
     const isStale = ageDays >= staleThresholdDays;
     items.push({
@@ -39,6 +53,7 @@ function buildAttentionItems(
 
   for (const pr of pullRequests) {
     if (pr.state !== "open") continue;
+    if (privateRepoKeys.has(pr.repoKey)) continue;
     const ageDays = daysSince(pr.updatedAt, nowMs);
     const isStale = ageDays >= staleThresholdDays;
     let priorityTier: DashboardAttentionItem["priorityTier"];
@@ -98,6 +113,10 @@ export async function GET() {
       sessionUsageAggregate,
     );
 
+    const privateRepoKeys = getShowPrivateRepoItems()
+      ? new Set<string>()
+      : buildPrivateRepoKeySet(state.snapshot?.repositories ?? []);
+
     const body: DashboardStateResponse = {
       window: {
         startDay: dashboardWindow.startDay,
@@ -121,6 +140,7 @@ export async function GET() {
           state.snapshot?.pullRequests ?? [],
           Date.now(),
           staleThresholdDays,
+          privateRepoKeys,
         ),
       },
       status: {

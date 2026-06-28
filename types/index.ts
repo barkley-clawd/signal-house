@@ -2,6 +2,7 @@ export type {
   IssueMetric,
   PullRequestMetric,
   WorkflowRunMetric,
+  RepositoryIdentity,
   RepositoryMetric,
   SessionMetric,
   LocalGitRepoMetric,

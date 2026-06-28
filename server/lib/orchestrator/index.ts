@@ -56,6 +56,7 @@ function mergeIdentity(
     githubOwner: existing.githubOwner ?? next.githubOwner,
     githubRepo: existing.githubRepo ?? next.githubRepo,
     source: mergeSource(existing.source, next.source),
+    isPrivate: existing.isPrivate ?? next.isPrivate,
   }
 }
 
@@ -99,6 +100,7 @@ function toRepositoryMetric(info: LocalGitRepoInfo): RepositoryIdentity {
     githubOwner: info.githubOwner,
     githubRepo: info.githubRepo,
     source: info.source,
+    isPrivate: false,
   }
 }
 
@@ -111,6 +113,7 @@ function normalizeRepositoryMetric(repo: RepositoryIdentity | RepositoryMetric):
     githubOwner: repo.githubOwner,
     githubRepo: repo.githubRepo,
     source: repo.source,
+    isPrivate: repo.isPrivate,
   }
 }
 

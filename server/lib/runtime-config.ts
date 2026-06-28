@@ -60,6 +60,9 @@ export interface RuntimeConfig {
   discovery: {
     maxDepth: number
   }
+  attention: {
+    showPrivateRepoItems: boolean
+  }
   retention: {
     snapshotsDays: number
     dailyMetricsDays: number
@@ -106,6 +109,9 @@ export function getRuntimeConfig(env: NodeJS.ProcessEnv = process.env): RuntimeC
     discovery: {
       maxDepth: DEFAULT_DISCOVERY_MAX_DEPTH,
     },
+    attention: {
+      showPrivateRepoItems: getBooleanEnv(env, 'SECRET_HOUSE_SHOW_PRIVATE_REPO_ITEMS'),
+    },
     retention: {
       snapshotsDays: parsePositiveInt(getEnv(env, 'SECRET_HOUSE_RETENTION_SNAPSHOTS_DAYS'), DEFAULT_RETENTION_SNAPSHOTS_DAYS),
       dailyMetricsDays: parsePositiveInt(getEnv(env, 'SECRET_HOUSE_RETENTION_DAILY_METRICS_DAYS'), DEFAULT_RETENTION_DAILY_METRICS_DAYS),
@@ -142,6 +148,10 @@ export function getSessionPeriodDays(env: NodeJS.ProcessEnv = process.env): numb
 
 export function getDiscoveryMaxDepth(env: NodeJS.ProcessEnv = process.env): number {
   return getRuntimeConfig(env).discovery.maxDepth
+}
+
+export function getShowPrivateRepoItems(env: NodeJS.ProcessEnv = process.env): boolean {
+  return getRuntimeConfig(env).attention.showPrivateRepoItems
 }
 
 export function getRetentionConfig(env: NodeJS.ProcessEnv = process.env) {

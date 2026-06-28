@@ -13,6 +13,7 @@ export type {
   DashboardAttentionItem,
   IssueMetric,
   PullRequestMetric,
+  RepositoryIdentity,
   MetricSnapshot,
   SourceDiagnostics,
   RefreshRunState,
