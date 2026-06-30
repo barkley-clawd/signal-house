@@ -770,18 +770,18 @@ describe('createOrchestrator', () => {
         id: 'gh-id',
         capturedAt: new Date().toISOString(),
         issues: [
-          { id: 'i1', title: 'Issue 1', state: 'open', createdAt: '2026-06-01T10:00:00Z', updatedAt: '', closedAt: null, repo: 'test/repo', repoKey: 'github:test/repo', labels: [], assignee: null, milestone: null, url: '' },
-          { id: 'i2', title: 'Issue 2', state: 'closed', createdAt: '2026-06-02T10:00:00Z', updatedAt: '', closedAt: '2026-06-04T10:00:00Z', repo: 'test/repo', repoKey: 'github:test/repo', labels: [], assignee: null, milestone: null, url: '' },
-          { id: 'i3', title: 'Issue 3', state: 'open', createdAt: '2026-06-03T10:00:00Z', updatedAt: '', closedAt: null, repo: 'test/repo', repoKey: 'github:test/repo', labels: [], assignee: null, milestone: null, url: '' },
+          { id: 'i1', title: 'Issue 1', state: 'open', createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), updatedAt: '', closedAt: null, repo: 'test/repo', repoKey: 'github:test/repo', labels: [], assignee: null, milestone: null, url: '' },
+          { id: 'i2', title: 'Issue 2', state: 'closed', createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(), updatedAt: '', closedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(), repo: 'test/repo', repoKey: 'github:test/repo', labels: [], assignee: null, milestone: null, url: '' },
+          { id: 'i3', title: 'Issue 3', state: 'open', createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), updatedAt: '', closedAt: null, repo: 'test/repo', repoKey: 'github:test/repo', labels: [], assignee: null, milestone: null, url: '' },
         ],
         pullRequests: [
-          { id: 'pr1', title: 'Merged PR', state: 'merged', createdAt: '2026-06-01T10:00:00Z', updatedAt: '', headSha: 'a', mergedAt: '2026-06-02T10:00:00Z', closedAt: null, repo: 'test/repo', repoKey: 'github:test/repo', author: 'x', labels: [], additions: null, deletions: null, changedFiles: null, url: '', ciStatus: null },
-          { id: 'pr2', title: 'Open PR', state: 'open', createdAt: '2026-06-02T10:00:00Z', updatedAt: '', headSha: 'b', mergedAt: null, closedAt: null, repo: 'test/repo', repoKey: 'github:test/repo', author: 'x', labels: [], additions: null, deletions: null, changedFiles: null, url: '', ciStatus: null },
-          { id: 'pr3', title: 'Closed-unmerged PR', state: 'closed', createdAt: '2026-06-03T10:00:00Z', updatedAt: '', headSha: 'c', mergedAt: null, closedAt: '2026-06-04T10:00:00Z', repo: 'test/repo', repoKey: 'github:test/repo', author: 'x', labels: [], additions: null, deletions: null, changedFiles: null, url: '', ciStatus: null },
+          { id: 'pr1', title: 'Merged PR', state: 'merged', createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), updatedAt: '', headSha: 'a', mergedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(), closedAt: null, repo: 'test/repo', repoKey: 'github:test/repo', author: 'x', labels: [], additions: null, deletions: null, changedFiles: null, url: '', ciStatus: null },
+          { id: 'pr2', title: 'Open PR', state: 'open', createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(), updatedAt: '', headSha: 'b', mergedAt: null, closedAt: null, repo: 'test/repo', repoKey: 'github:test/repo', author: 'x', labels: [], additions: null, deletions: null, changedFiles: null, url: '', ciStatus: null },
+          { id: 'pr3', title: 'Closed-unmerged PR', state: 'closed', createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), updatedAt: '', headSha: 'c', mergedAt: null, closedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(), repo: 'test/repo', repoKey: 'github:test/repo', author: 'x', labels: [], additions: null, deletions: null, changedFiles: null, url: '', ciStatus: null },
         ],
         workflowRuns: [
-          { id: 'w1', name: 'CI', status: 'completed', conclusion: 'success', createdAt: '2026-06-01T10:00:00Z', completedAt: '2026-06-01T11:00:00Z', headSha: 'a', repo: 'test/repo', repoKey: 'github:test/repo', branch: 'main', workflowName: 'CI', url: null },
-          { id: 'w2', name: 'CI', status: 'completed', conclusion: 'failure', createdAt: '2026-06-03T10:00:00Z', completedAt: '2026-06-03T11:00:00Z', headSha: 'c', repo: 'test/repo', repoKey: 'github:test/repo', branch: 'main', workflowName: 'CI', url: null },
+          { id: 'w1', name: 'CI', status: 'completed', conclusion: 'success', createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), completedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000 + 3600000).toISOString(), headSha: 'a', repo: 'test/repo', repoKey: 'github:test/repo', branch: 'main', workflowName: 'CI', url: null },
+          { id: 'w2', name: 'CI', status: 'completed', conclusion: 'failure', createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), completedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000 + 3600000).toISOString(), headSha: 'c', repo: 'test/repo', repoKey: 'github:test/repo', branch: 'main', workflowName: 'CI', url: null },
         ],
         repositories: [{
           id: '1', name: 'repo', repoKey: 'github:test/repo', localPath: null, remoteUrl: 'https://github.com/test/repo',
@@ -817,9 +817,9 @@ describe('createOrchestrator', () => {
         defaultBranch: 'main',
         isGitRepo: true,
         recentCommits: 10,
-        commitsByDay: { '2026-06-01': 4, '2026-06-03': 6 },
+        commitsByDay: { [new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)]: 4, [new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)]: 6 },
         authors: ['alice@example.com'],
-        latestCommitAt: '2026-06-03T12:00:00Z',
+        latestCommitAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000 + 12 * 60 * 60 * 1000).toISOString(),
         error: null,
       }],
       errors: [],
@@ -827,9 +827,9 @@ describe('createOrchestrator', () => {
 
     sessionCollector.collect.mockResolvedValue({
       sessions: [
-        { id: 's1', toolName: 'opencode', action: 'edit', timestamp: '2026-06-01T10:00:00Z', durationMs: 100, metadata: {}, success: true },
-        { id: 's2', toolName: 'opencode', action: 'search', timestamp: '2026-06-01T11:00:00Z', durationMs: 50, metadata: {}, success: false },
-        { id: 's3', toolName: 'opencode', action: 'edit', timestamp: '2026-06-04T10:00:00Z', durationMs: 200, metadata: {}, success: true },
+        { id: 's1', toolName: 'opencode', action: 'edit', timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), durationMs: 100, metadata: {}, success: true },
+        { id: 's2', toolName: 'opencode', action: 'search', timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000 + 3600000).toISOString(), durationMs: 50, metadata: {}, success: false },
+        { id: 's3', toolName: 'opencode', action: 'edit', timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(), durationMs: 200, metadata: {}, success: true },
       ],
       sessionUsage: {
         periodStart: '2026-05-01T00:00:00Z',
@@ -877,7 +877,7 @@ describe('createOrchestrator', () => {
     expect(snapshotArg.sessions).toHaveLength(3)
     expect(snapshotArg.localGit).toHaveLength(1)
     expect(snapshotArg.localGit[0]!.recentCommits).toBe(10)
-    expect(snapshotArg.localGit[0]!.commitsByDay).toEqual({ '2026-06-01': 4, '2026-06-03': 6 })
+    expect(snapshotArg.localGit[0]!.commitsByDay).toEqual({ [new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)]: 4, [new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)]: 6 })
     expect(snapshotArg.aggregates.cycleTime).not.toBeNull()
     expect(snapshotArg.aggregates.ci).not.toBeNull()
     expect(snapshotArg.aggregates.staleWork.staleIssues).toBe(2)
