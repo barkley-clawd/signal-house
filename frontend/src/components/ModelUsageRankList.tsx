@@ -87,11 +87,7 @@ function ModelRow({
               {!hasDetailData(entry) ? (
                 <p className="text-xs text-text-muted">No token data available</p>
               ) : (
-                <div className="grid grid-cols-7 gap-1 text-center">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] uppercase tracking-[0.06em] text-text-muted">Messages</span>
-                    <span className="text-xs font-mono tabular-nums text-text-secondary">{formatNumber(entry.messages)}</span>
-                  </div>
+                <div className="grid grid-cols-6 gap-1 text-center">
                   <div className="flex flex-col">
                     <span className="text-[10px] uppercase tracking-[0.06em] text-text-muted">In</span>
                     <span className="text-xs font-mono tabular-nums text-text-secondary">{formatNumber(entry.inputTokens)}</span>
