@@ -209,6 +209,20 @@ export function DailyTokenUsageCard({
 
   const isEmpty = rows.length === 0;
 
+  const sortedModelUsage = useMemo(() => {
+    if (!selectedRow) return [];
+    return [...selectedRow.modelUsage].sort((a, b) => {
+      const costA = a.cost ?? -1;
+      const costB = b.cost ?? -1;
+      return costB - costA;
+    });
+  }, [selectedRow]);
+
+  const maxCost = useMemo(
+    () => Math.max(...sortedModelUsage.map((m) => m.cost ?? 0), 0),
+    [sortedModelUsage],
+  );
+
   return (
     <Card className="border-card-border bg-card-bg">
       <CardHeader>
@@ -282,65 +296,111 @@ export function DailyTokenUsageCard({
                   })}
                 </div>
 
-                <div className="space-y-2">
-                  {selectedRow && selectedRow.modelUsage.length > 0 ? (
-                    selectedRow.modelUsage.map((m: ModelEntry) => (
-                      <div
-                        key={m.modelName}
-                        className="rounded-lg border border-card-border bg-card-bg p-3"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="truncate text-sm font-semibold text-text-primary">
-                            {m.modelName}
-                          </span>
-                          <span className="shrink-0 text-xs font-mono tabular-nums text-accent-primary">
-                            {formatCost(m.cost)}
-                          </span>
-                        </div>
-                        <div className="mt-2 grid grid-cols-5 gap-1 text-center">
-                          <div className="flex flex-col">
-                            <span className="text-[10px] uppercase tracking-[0.06em] text-text-muted">
-                              In
-                            </span>
-                            <span className="text-xs font-mono tabular-nums text-text-secondary">
-                              {formatNumber(m.inputTokens)}
-                            </span>
+                <div>
+                  {sortedModelUsage.length > 0 ? (
+                    <div>
+                      <div className="hidden sm:block">
+                        <div role="table" className="w-full">
+                          <div
+                            role="row"
+                            className="grid grid-cols-[2fr_repeat(5,1fr)_auto] gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-[0.06em] text-text-muted"
+                          >
+                            <div role="columnheader">Model</div>
+                            <div role="columnheader" className="text-right">Input</div>
+                            <div role="columnheader" className="text-right">Output</div>
+                            <div role="columnheader" className="text-right">Cache R</div>
+                            <div role="columnheader" className="text-right">Cache W</div>
+                            <div role="columnheader" className="text-right">Msgs</div>
+                            <div role="columnheader" className="text-right">Cost</div>
                           </div>
-                          <div className="flex flex-col">
-                            <span className="text-[10px] uppercase tracking-[0.06em] text-text-muted">
-                              Out
-                            </span>
-                            <span className="text-xs font-mono tabular-nums text-text-secondary">
-                              {formatNumber(m.outputTokens)}
-                            </span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[10px] uppercase tracking-[0.06em] text-text-muted">
-                              Cache R
-                            </span>
-                            <span className="text-xs font-mono tabular-nums text-text-secondary">
-                              {formatNumber(m.cacheReadTokens)}
-                            </span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[10px] uppercase tracking-[0.06em] text-text-muted">
-                              Cache W
-                            </span>
-                            <span className="text-xs font-mono tabular-nums text-text-secondary">
-                              {formatNumber(m.cacheWriteTokens)}
-                            </span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[10px] uppercase tracking-[0.06em] text-text-muted">
-                              Msgs
-                            </span>
-                            <span className="text-xs font-mono tabular-nums text-text-secondary">
-                              {formatNumber(m.messages)}
-                            </span>
-                          </div>
+                          {sortedModelUsage.map((m) => (
+                            <div
+                              key={m.modelName}
+                              role="row"
+                              className="grid grid-cols-[2fr_repeat(5,1fr)_auto] gap-x-3 border-t border-card-border px-3 py-2.5"
+                            >
+                              <div
+                                role="cell"
+                                className="truncate text-sm font-medium text-text-primary self-center"
+                              >
+                                {m.modelName}
+                              </div>
+                              {([m.inputTokens, m.outputTokens, m.cacheReadTokens, m.cacheWriteTokens, m.messages] as const).map(
+                                (val, i) => (
+                                  <div
+                                    key={i}
+                                    role="cell"
+                                    className="text-right text-xs font-mono tabular-nums text-text-secondary self-center"
+                                  >
+                                    {formatNumber(val)}
+                                  </div>
+                                ),
+                              )}
+                              <div
+                                role="cell"
+                                className="text-right self-center"
+                              >
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {maxCost > 0 && m.cost != null && (
+                                    <span
+                                      className="block h-1.5 rounded-full bg-accent-primary/40"
+                                      style={{ width: `${Math.max(2, (m.cost / maxCost) * 40)}px` }}
+                                    />
+                                  )}
+                                  <span className="text-xs font-mono tabular-nums text-accent-primary">
+                                    {formatCost(m.cost)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    ))
+
+                      <div className="space-y-2 sm:hidden">
+                        {sortedModelUsage.map((m) => (
+                          <div
+                            key={m.modelName}
+                            className="rounded-lg border border-card-border bg-card-bg p-3"
+                          >
+                            <div className="mb-2 flex items-center justify-between">
+                              <span className="truncate text-sm font-semibold text-text-primary">
+                                {m.modelName}
+                              </span>
+                              <span className="shrink-0 text-xs font-mono tabular-nums text-accent-primary">
+                                {formatCost(m.cost)}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-text-muted">Input</span>
+                                <span className="font-mono tabular-nums text-text-secondary">{formatNumber(m.inputTokens)}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-text-muted">Output</span>
+                                <span className="font-mono tabular-nums text-text-secondary">{formatNumber(m.outputTokens)}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-text-muted">Cache R</span>
+                                <span className="font-mono tabular-nums text-text-secondary">{formatNumber(m.cacheReadTokens)}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-text-muted">Cache W</span>
+                                <span className="font-mono tabular-nums text-text-secondary">{formatNumber(m.cacheWriteTokens)}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-text-muted">Msgs</span>
+                                <span className="font-mono tabular-nums text-text-secondary">{formatNumber(m.messages)}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-text-muted">Cost</span>
+                                <span className="font-mono tabular-nums text-accent-primary">{formatCost(m.cost)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   ) : (
                     <p className="text-xs text-text-muted">
                       No model breakdown for this day
