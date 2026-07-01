@@ -191,11 +191,17 @@ describe('buildRefreshConfig', () => {
 
     process.env['SECRET_HOUSE_PROJECT_ROOTS'] = '/workspace'
 
-    const config = buildRefreshConfig()
+    const warnSpy: jest.SpiedFunction<typeof console.warn> = jest.spyOn(console, 'warn').mockImplementation(() => {})
 
-    expect(config.discoveryWarnings).toEqual([
-      '/workspace: Unable to read directory: permission denied',
-    ])
+    try {
+      const config = buildRefreshConfig()
+
+      expect(config.discoveryWarnings).toEqual([
+        '/workspace: Unable to read directory: permission denied',
+      ])
+    } finally {
+      warnSpy.mockRestore()
+    }
   })
 
   it('deduplicates when explicit and discovered repos overlap', () => {
