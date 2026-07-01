@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { BarChart3 } from "lucide-react";
 import { UsageBar } from "@/components/UsageBar";
 import { Badge } from "@/components/ui/badge";
+import { StatsBar } from "@/components/ui/stats-bar";
 import { cn } from "@/lib/utils";
 import { formatCost } from "@/lib/format-cost";
 import {
@@ -147,26 +148,14 @@ export function CostBreakdownCard({ tokenUsage }: CostBreakdownCardProps) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-card-border bg-card-bg px-3 py-2 text-sm">
-        <span className="text-text-muted">
-          Total{" "}
-          <span className="font-semibold tabular-nums text-text-primary">
-            {formatCost(totalCost)}
-          </span>
-        </span>
-        <span className="text-text-muted">
-          Messages{" "}
-          <span className="font-semibold tabular-nums text-text-primary">
-            {totalMessages}
-          </span>
-        </span>
-        <span className="text-text-muted">
-          Avg{" "}
-          <span className="font-semibold tabular-nums text-text-primary">
-            {formatCostPerMessage(avgCpm)}
-          </span>
-        </span>
-      </div>
+      <StatsBar
+        variant="card"
+        stats={[
+          { label: "Total", value: totalCost, format: "cost" },
+          { label: "Messages", value: totalMessages, format: "number" },
+          { label: "Avg", value: formatCostPerMessage(avgCpm) },
+        ]}
+      />
       <div className="space-y-2">
         {rows.map((row) => (
           <CostRowView

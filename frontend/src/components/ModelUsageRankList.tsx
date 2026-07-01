@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { rankModelUsage, totalTokens as modelTotalTokens } from "@/lib/rank-models";
 import type { RankedModelEntry } from "@/lib/rank-models";
 import { UsageBar } from "@/components/UsageBar";
+import { StatsBar } from "@/components/ui/stats-bar";
 import { cn } from "@/lib/utils";
 import { formatCost } from "@/lib/format-cost";
 import { averageCostPerMessage, hasDetailData, totalTokens as sumEntryTokens } from "./model-usage-utils";
@@ -210,39 +211,33 @@ export function ModelUsageRankList({ tokenUsage }: ModelUsageRankListProps) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-card-border bg-card-bg px-3 py-2 text-sm">
-        <span className="text-text-muted">
-          Sessions{" "}
-          <span className="font-semibold text-text-primary tabular-nums">
-            {tokenUsage!.totalSessions}
-          </span>
-        </span>
-        <span className="text-text-muted">
-          Messages{" "}
-          <span className="font-semibold text-text-primary tabular-nums">
-            {formatNumber(tokenUsage!.totalMessages)}
-          </span>
-        </span>
-        <span className="text-text-muted">
-          Tokens{" "}
-          <span className="font-semibold text-text-primary tabular-nums">
-            {formatNumber(tokenUsage!.totalTokens)}
-          </span>
-        </span>
-        <span className="text-text-muted">
-          Cost{" "}
-          <span
-            className={cn(
-              "font-semibold tabular-nums",
-              tokenUsage!.totalCost != null && tokenUsage!.totalCost > 0
-                ? "text-accent-primary"
-                : "text-text-primary",
-            )}
-          >
-            {formatCost(tokenUsage!.totalCost)}
-          </span>
-        </span>
-      </div>
+      <StatsBar
+        variant="card"
+        stats={[
+          {
+            label: "Sessions",
+            value: tokenUsage!.totalSessions,
+            format: "number",
+          },
+          {
+            label: "Messages",
+            value: tokenUsage!.totalMessages,
+            format: "number",
+          },
+          {
+            label: "Tokens",
+            value: tokenUsage!.totalTokens,
+            format: "number",
+          },
+          {
+            label: "Cost",
+            value: tokenUsage!.totalCost,
+            format: "cost",
+            highlight:
+              tokenUsage!.totalCost != null && tokenUsage!.totalCost > 0,
+          },
+        ]}
+      />
 
       {ranked.length > 0 && (
         <div className="flex justify-end">
