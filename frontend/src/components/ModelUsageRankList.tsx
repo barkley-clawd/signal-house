@@ -40,15 +40,28 @@ function ModelRow({
   const entryTokenTotal = modelTotalTokens(entry);
   const messageShare = totalMessages > 0 ? entry.messages / totalMessages : 0;
 
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onToggle();
+    }
+  }
+
   return (
-    <div className="rounded-lg border border-card-border bg-card-bg p-3 transition-colors hover:bg-card-hover">
-      <button
-        type="button"
-        className="flex w-full items-center gap-2 text-left"
-        onClick={onToggle}
-        aria-expanded={expanded}
-        aria-label={`${entry.modelName}: ${entry.messages} messages`}
-      >
+    <div
+      className={cn(
+        "rounded-lg border border-card-border bg-card-bg p-3 transition-colors hover:bg-card-hover",
+        "cursor-pointer",
+        "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring",
+      )}
+      onClick={onToggle}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-expanded={expanded}
+      aria-label={`${entry.modelName}: ${entry.messages} messages`}
+    >
+      <div className="flex w-full items-center gap-2 text-left">
         {expanded ? (
           <ChevronDown className="size-4 shrink-0 text-text-muted" />
         ) : (
@@ -63,7 +76,7 @@ function ModelRow({
         <span className="shrink-0 text-xs text-text-muted tabular-nums">
           {formatNumber(entry.messages)} msgs
         </span>
-      </button>
+      </div>
 
       <UsageBar
         value={entryTokenTotal}
