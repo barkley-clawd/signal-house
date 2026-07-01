@@ -1,0 +1,103 @@
+import { describe, expect, it } from '@jest/globals'
+import { buildDiagnostics } from '../build-diagnostics'
+import {
+  makeLocalRepo,
+  makeRepository,
+  makeSnapshot,
+} from './fixtures'
+import type { RefreshRunState } from '../../../types/snapshot'
+
+function makeState(overrides: Partial<RefreshRunState> = {}): RefreshRunState {
+  return {
+    status: 'idle',
+    lastRunStartedAt: null,
+    lastRunFinishedAt: null,
+    lastSuccessAt: null,
+    lastFailureAt: null,
+    nextRunAt: null,
+    lastError: null,
+    durationMs: null,
+    sourceHealth: {},
+    runHistory: [],
+    ...overrides,
+  }
+}
+
+describe('buildDiagnostics — private repo filtering', () => {
+  it('shows all repos (public + private) when showPrivateRepoItems is true', () => {
+    const state = makeState()
+    const snapshot = makeSnapshot({
+      localGit: [
+        makeLocalRepo({ repoKey: 'local:/alpha', repoName: 'alpha', githubOwner: 'acme', githubRepo: 'alpha' }),
+        makeLocalRepo({ repoKey: 'local:/beta', repoName: 'beta', githubOwner: 'acme', githubRepo: 'beta' }),
+        makeLocalRepo({ repoKey: 'local:/gamma', repoName: 'gamma', githubOwner: 'acme', githubRepo: 'gamma' }),
+      ],
+      repositories: [
+        makeRepository({ repoKey: 'github:acme/alpha', githubOwner: 'acme', githubRepo: 'alpha', isPrivate: false }),
+        makeRepository({ repoKey: 'github:acme/beta', githubOwner: 'acme', githubRepo: 'beta', isPrivate: true }),
+        makeRepository({ repoKey: 'github:acme/gamma', githubOwner: 'acme', githubRepo: 'gamma', isPrivate: false }),
+      ],
+    })
+
+    const result = buildDiagnostics(state, snapshot, true)
+
+    expect(result.discoveredRepos).toHaveLength(3)
+    expect(result.discoveredRepos.map(r => r.name)).toEqual(['alpha', 'beta', 'gamma'])
+  })
+
+  it('filters out private repos when showPrivateRepoItems is false (2 public + 1 private → 2)', () => {
+    const state = makeState()
+    const snapshot = makeSnapshot({
+      localGit: [
+        makeLocalRepo({ repoKey: 'local:/alpha', repoName: 'alpha', githubOwner: 'acme', githubRepo: 'alpha' }),
+        makeLocalRepo({ repoKey: 'local:/beta', repoName: 'beta', githubOwner: 'acme', githubRepo: 'beta' }),
+        makeLocalRepo({ repoKey: 'local:/gamma', repoName: 'gamma', githubOwner: 'acme', githubRepo: 'gamma' }),
+      ],
+      repositories: [
+        makeRepository({ repoKey: 'github:acme/alpha', githubOwner: 'acme', githubRepo: 'alpha', isPrivate: false }),
+        makeRepository({ repoKey: 'github:acme/beta', githubOwner: 'acme', githubRepo: 'beta', isPrivate: true }),
+        makeRepository({ repoKey: 'github:acme/gamma', githubOwner: 'acme', githubRepo: 'gamma', isPrivate: false }),
+      ],
+    })
+
+    const result = buildDiagnostics(state, snapshot, false)
+
+    expect(result.discoveredRepos).toHaveLength(2)
+    expect(result.discoveredRepos.map(r => r.name).sort()).toEqual(['alpha', 'gamma'])
+    expect(result.discoveredRepos.every(r => r.isPrivate !== true)).toBe(true)
+  })
+
+  it('defaults isPrivate to false when localGit repo has no match in snapshot.repositories', () => {
+    const state = makeState()
+    const snapshot = makeSnapshot({
+      localGit: [
+        makeLocalRepo({ repoKey: 'local:/orphan', repoName: 'orphan', githubOwner: null, githubRepo: null }),
+      ],
+      repositories: [
+        makeRepository({ repoKey: 'github:acme/other', githubOwner: 'acme', githubRepo: 'other', isPrivate: true }),
+      ],
+    })
+
+    const result = buildDiagnostics(state, snapshot, false)
+
+    expect(result.discoveredRepos).toHaveLength(1)
+    expect(result.discoveredRepos[0].name).toBe('orphan')
+    expect(result.discoveredRepos[0].isPrivate).toBe(false)
+  })
+
+  it('returns an empty discoveredRepos array when localGit is empty, regardless of flag', () => {
+    const state = makeState()
+    const snapshot = makeSnapshot({
+      localGit: [],
+      repositories: [
+        makeRepository({ repoKey: 'github:acme/secret', githubOwner: 'acme', githubRepo: 'secret', isPrivate: true }),
+      ],
+    })
+
+    const hiddenResult = buildDiagnostics(state, snapshot, false)
+    const shownResult = buildDiagnostics(state, snapshot, true)
+
+    expect(hiddenResult.discoveredRepos).toEqual([])
+    expect(shownResult.discoveredRepos).toEqual([])
+  })
+})

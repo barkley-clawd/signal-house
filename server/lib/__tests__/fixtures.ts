@@ -7,6 +7,7 @@ import type {
   IssueMetric,
   PullRequestMetric,
   WorkflowRunMetric,
+  RepositoryIdentity,
   LocalGitRepoMetric,
   SessionMetric,
 } from '../../../types/metrics'
@@ -101,6 +102,20 @@ export function makeLocalRepo(overrides: Partial<LocalGitRepoMetric> = {}): Loca
     authors: ['alice@example.com'],
     latestCommitAt: null,
     error: null,
+    ...overrides,
+  }
+}
+
+export function makeRepository(overrides: Partial<RepositoryIdentity> = {}): RepositoryIdentity {
+  return {
+    repoKey: 'github:owner/repo',
+    name: 'repo',
+    localPath: null,
+    remoteUrl: 'https://github.com/owner/repo',
+    githubOwner: 'owner',
+    githubRepo: 'repo',
+    source: 'github',
+    isPrivate: false,
     ...overrides,
   }
 }

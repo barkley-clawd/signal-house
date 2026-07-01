@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { SQL, SCHEMA_VERSION } from './schema'
 import { getBooleanEnv } from '../lib/env'
 import { buildDiagnostics } from '../lib/build-diagnostics'
-import { getRefreshHistoryLimit, getStaleThresholdMs, getRetentionConfig } from '../lib/runtime-config'
+import { getRefreshHistoryLimit, getStaleThresholdMs, getRetentionConfig, getShowPrivateRepoItems } from '../lib/runtime-config'
 import type { MetricSnapshot, LatestState, RefreshRunRecord, RefreshRunState, RefreshSourceHealth, RefreshRunStatus, SourceDiagnostics } from '../../types/snapshot'
 import type { AggregateType, DashboardAggregates, ThroughputAggregate, CycleTimeAggregate, CIAggregate, StaleWorkAggregate, SessionUsageAggregate, TokenUsageAggregate } from '../../types/aggregates'
 import type { DailyMetricsInsert, DailyMetricsRow } from '../../types/daily-metrics'
@@ -342,7 +342,7 @@ export function getLatestState(): LatestState {
     nextRunAt: refreshState.nextRunAt,
     dashboardWindow: null,
     refreshState,
-    diagnostics: buildDiagnostics(refreshState, snapshot),
+    diagnostics: buildDiagnostics(refreshState, snapshot, getShowPrivateRepoItems()),
   }
 }
 

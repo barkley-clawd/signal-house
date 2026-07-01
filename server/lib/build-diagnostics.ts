@@ -1,22 +1,39 @@
 import { getBooleanEnv, getEnv } from './env'
 import type { MetricSnapshot, RefreshRunState, SourceDiagnostics } from '../../types/snapshot'
 
-export function buildDiagnostics(state: RefreshRunState, snapshot: MetricSnapshot | null): SourceDiagnostics {
+export function buildDiagnostics(
+  state: RefreshRunState,
+  snapshot: MetricSnapshot | null,
+  showPrivateRepoItems: boolean,
+): SourceDiagnostics {
   const configuredProjectRoots = getEnv(process.env, 'SECRET_HOUSE_PROJECT_ROOTS', 'GIT_REPO_ROOTS')
     ?.split(',')
     .map(root => root.trim())
     .filter(Boolean) ?? []
   const pollIntervalSeconds = getEnv(process.env, 'SECRET_HOUSE_POLL_INTERVAL_SECONDS', 'METRICS_POLL_INTERVAL_SECONDS')
   const refreshAgeSeconds = snapshot ? Math.max(0, Math.floor((Date.now() - new Date(snapshot.capturedAt).getTime()) / 1000)) : null
-  const discoveredRepos = snapshot?.localGit.map(repo => ({
-    repoKey: repo.repoKey,
-    name: repo.repoName,
-    path: repo.path,
-    remoteUrl: repo.remoteUrl,
-    githubOwner: repo.githubOwner,
-    githubRepo: repo.githubRepo,
-    source: repo.source,
-  })) ?? []
+  const privateByGithubKey = new Map<string, boolean>(
+    (snapshot?.repositories ?? [])
+      .filter(repo => repo.githubOwner && repo.githubRepo)
+      .map(repo => [`${repo.githubOwner}/${repo.githubRepo}`, repo.isPrivate === true]),
+  )
+  const discoveredRepos = (snapshot?.localGit ?? [])
+    .map(repo => {
+      const githubKey = repo.githubOwner && repo.githubRepo
+        ? `${repo.githubOwner}/${repo.githubRepo}`
+        : null
+      return {
+        repoKey: repo.repoKey,
+        name: repo.repoName,
+        path: repo.path,
+        remoteUrl: repo.remoteUrl,
+        githubOwner: repo.githubOwner,
+        githubRepo: repo.githubRepo,
+        source: repo.source,
+        isPrivate: githubKey ? (privateByGithubKey.get(githubKey) ?? false) : false,
+      }
+    })
+    .filter(repo => showPrivateRepoItems || !repo.isPrivate)
   const parsedGitHubRemotes = discoveredRepos
     .filter(repo => repo.remoteUrl || repo.githubOwner || repo.githubRepo)
     .map(repo => ({
