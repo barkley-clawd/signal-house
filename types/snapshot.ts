@@ -246,6 +246,7 @@ export interface SourceDiagnostics {
     githubOwner: string | null
     githubRepo: string | null
     source: 'local' | 'github' | 'both'
+    isPrivate?: boolean
   }>
   skippedPaths: Array<{ path: string; message: string }>
   parsedGitHubRemotes: Array<{
