@@ -10,7 +10,6 @@ const DEFAULT_STALE_THRESHOLD_MINUTES = 15
 const DEFAULT_ORCHESTRATOR_COLLECT_CONCURRENCY = 3
 const DEFAULT_ORCHESTRATOR_LOOKBACK_DAYS = 28
 const DEFAULT_ORCHESTRATOR_STALE_THRESHOLD_DAYS = 14
-const DEFAULT_COMPLETED_WINDOW_DAYS = 14
 const DEFAULT_SESSION_PERIOD_DAYS = 30
 const DEFAULT_DISCOVERY_MAX_DEPTH = 3
 const DEFAULT_RETENTION_SNAPSHOTS_DAYS = 30
@@ -54,7 +53,6 @@ export interface RuntimeConfig {
     collectConcurrency: number
     githubLookbackDays: number
     staleThresholdDays: number
-    completedWindowDays: number
   }
   sessions: {
     periodDays: number
@@ -104,7 +102,6 @@ export function getRuntimeConfig(env: NodeJS.ProcessEnv = process.env): RuntimeC
       collectConcurrency: DEFAULT_ORCHESTRATOR_COLLECT_CONCURRENCY,
       githubLookbackDays: DEFAULT_ORCHESTRATOR_LOOKBACK_DAYS,
       staleThresholdDays: DEFAULT_ORCHESTRATOR_STALE_THRESHOLD_DAYS,
-      completedWindowDays: DEFAULT_COMPLETED_WINDOW_DAYS,
     },
     sessions: {
       periodDays: parsePositiveInt(getEnv(env, 'SECRET_HOUSE_SESSIONS_PERIOD_DAYS', 'SESSIONS_PERIOD_DAYS'), DEFAULT_SESSION_PERIOD_DAYS),
@@ -155,10 +152,6 @@ export function getDiscoveryMaxDepth(env: NodeJS.ProcessEnv = process.env): numb
 
 export function getShowPrivateRepoItems(env: NodeJS.ProcessEnv = process.env): boolean {
   return getRuntimeConfig(env).attention.showPrivateRepoItems
-}
-
-export function getCompletedWindowDays(env: NodeJS.ProcessEnv = process.env): number {
-  return getRuntimeConfig(env).orchestrator.completedWindowDays
 }
 
 export function getRetentionConfig(env: NodeJS.ProcessEnv = process.env) {

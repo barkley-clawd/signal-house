@@ -1,7 +1,7 @@
 import { GET } from "./route";
 import { getDailyMetricsRange, getDailyTokenUsageRange, getLatestState } from "../../../../../server/db/client";
 import { buildDashboardWindow } from "../../../../../server/lib/dashboard-state";
-import { getCompletedWindowDays, getShowPrivateRepoItems } from "../../../../../server/lib/runtime-config";
+import { getShowPrivateRepoItems } from "../../../../../server/lib/runtime-config";
 import type { DashboardWindow, LatestState } from "@/types";
 
 jest.mock("../../../../../server/db/client", () => ({
@@ -18,7 +18,6 @@ jest.mock("../../../../../server/lib/dashboard-state", () => ({
 jest.mock("../../../../../server/lib/runtime-config", () => ({
   getDashboardWindowDays: jest.fn(() => 28),
   getShowPrivateRepoItems: jest.fn(() => false),
-  getCompletedWindowDays: jest.fn(() => 14),
 }));
 
 function makeLatestState(): LatestState {
@@ -246,7 +245,6 @@ describe("GET /api/state", () => {
       },
       attention: {
         staleThresholdDays: 14,
-        completedWindowDays: 14,
         items: [
           {
             id: "issue-github:demo/repo-issue-1",
@@ -400,142 +398,5 @@ describe("GET /api/state", () => {
     expect(body.attention.items).toHaveLength(2);
     const repos = body.attention.items.map((item: { repo: string }) => item.repo);
     expect(repos).toEqual(expect.arrayContaining(["demo/repo", "demo/secret"]));
-  });
-
-  it("includes recently closed issues as completed items", async () => {
-    const state = makeLatestState();
-    state.snapshot!.issues = [
-      {
-        id: "issue-1",
-        title: "Open issue",
-        state: "open",
-        createdAt: "2026-06-01T00:00:00.000Z",
-        updatedAt: "2026-06-01T00:00:00.000Z",
-        closedAt: null,
-        repo: "demo/repo",
-        repoKey: "github:demo/repo",
-        labels: [],
-        assignee: null,
-        milestone: null,
-        url: "https://example.test/issues/1",
-      },
-      {
-        id: "issue-2",
-        title: "Recently closed issue",
-        state: "closed",
-        createdAt: "2026-06-01T00:00:00.000Z",
-        updatedAt: "2026-06-20T00:00:00.000Z",
-        closedAt: "2026-06-20T00:00:00.000Z",
-        repo: "demo/repo",
-        repoKey: "github:demo/repo",
-        labels: [],
-        assignee: null,
-        milestone: null,
-        url: "https://example.test/issues/2",
-      },
-    ];
-    (getLatestState as jest.Mock).mockReturnValue(state);
-
-    const response = await GET();
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(body.attention.items).toHaveLength(2);
-    const completed = body.attention.items.find(
-      (item: { priorityTier: string }) => item.priorityTier === "completed",
-    );
-    expect(completed).toBeDefined();
-    expect(completed).toMatchObject({
-      id: "issue-github:demo/repo-issue-2",
-      kind: "issue",
-      title: "Recently closed issue",
-      priorityTier: "completed",
-      statusLabel: "Closed",
-    });
-  });
-
-  it("includes recently merged PRs as completed items", async () => {
-    const state = makeLatestState();
-    state.snapshot!.issues = [];
-    state.snapshot!.pullRequests = [
-      {
-        id: "pr-1",
-        title: "Merged PR",
-        state: "merged",
-        createdAt: "2026-06-01T00:00:00.000Z",
-        updatedAt: "2026-06-22T00:00:00.000Z",
-        headSha: "abc123",
-        mergedAt: "2026-06-22T00:00:00.000Z",
-        closedAt: "2026-06-22T00:00:00.000Z",
-        repo: "demo/repo",
-        repoKey: "github:demo/repo",
-        author: "alice",
-        labels: [],
-        additions: null,
-        deletions: null,
-        changedFiles: null,
-        url: "https://example.test/pulls/1",
-        ciStatus: null,
-      },
-    ];
-    (getLatestState as jest.Mock).mockReturnValue(state);
-
-    const response = await GET();
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    const completed = body.attention.items.find(
-      (item: { priorityTier: string }) => item.priorityTier === "completed",
-    );
-    expect(completed).toBeDefined();
-    expect(completed).toMatchObject({
-      id: "pr-github:demo/repo-pr-1",
-      kind: "pr",
-      title: "Merged PR",
-      priorityTier: "completed",
-      statusLabel: "Merged",
-    });
-  });
-
-  it("excludes completed items older than the completed window", async () => {
-    const state = makeLatestState();
-    state.snapshot!.issues = [
-      {
-        id: "issue-1",
-        title: "Open issue",
-        state: "open",
-        createdAt: "2026-06-01T00:00:00.000Z",
-        updatedAt: "2026-06-01T00:00:00.000Z",
-        closedAt: null,
-        repo: "demo/repo",
-        repoKey: "github:demo/repo",
-        labels: [],
-        assignee: null,
-        milestone: null,
-        url: "https://example.test/issues/1",
-      },
-      {
-        id: "issue-2",
-        title: "Old closed issue",
-        state: "closed",
-        createdAt: "2026-05-01T00:00:00.000Z",
-        updatedAt: "2026-05-15T00:00:00.000Z",
-        closedAt: "2026-05-15T00:00:00.000Z",
-        repo: "demo/repo",
-        repoKey: "github:demo/repo",
-        labels: [],
-        assignee: null,
-        milestone: null,
-        url: "https://example.test/issues/2",
-      },
-    ];
-    (getLatestState as jest.Mock).mockReturnValue(state);
-
-    const response = await GET();
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(body.attention.items).toHaveLength(1);
-    expect(body.attention.items[0].priorityTier).not.toBe("completed");
   });
 });
