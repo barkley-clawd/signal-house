@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Database, ExternalLink, RefreshCw } from "lucide-react";
+import { ExternalLink, RefreshCw } from "lucide-react";
 import { useDashboardStore } from "@/store/dashboard";
 import { HealthSignalCard } from "@/components/HealthSignalCard";
 import { Button } from "@/components/ui/button";
@@ -52,7 +52,7 @@ const SourceHealthSection = dynamic(
 );
 
 type TypeFilter = "issues" | "prs" | "all";
-type ConditionFilter = "stale" | "blocked" | "failing" | "completed" | "all";
+type ConditionFilter = "stale" | "blocked" | "failing" | "all";
 type SortMode = "oldest" | "urgent";
 
 type AttentionItem = DashboardAttentionItem;
@@ -133,7 +133,6 @@ const conditionOptions: Array<{ value: ConditionFilter; label: string }> = [
   { value: "stale", label: "Stale" },
   { value: "blocked", label: "Blocked" },
   { value: "failing", label: "Failing" },
-  { value: "completed", label: "Completed" },
 ];
 
 const sortOptions: Array<{ value: SortMode; label: string }> = [
@@ -428,13 +427,8 @@ export default function Home() {
     if (conditionFilter === "stale") result = result.filter((item) => item.priorityTier === "stale");
     if (conditionFilter === "blocked") result = result.filter((item) => item.priorityTier === "ci-blocked");
     if (conditionFilter === "failing") result = result.filter((item) => item.priorityTier === "ci-failing");
-    if (conditionFilter === "completed") result = result.filter((item) => item.priorityTier === "completed");
 
-    if (conditionFilter === "completed") {
-      result.sort((a, b) => a.ageDays - b.ageDays);
-    } else {
-      result.sort((a, b) => (sortMode === "oldest" ? b.ageDays - a.ageDays : a.ageDays - b.ageDays));
-    }
+    result.sort((a, b) => (sortMode === "oldest" ? b.ageDays - a.ageDays : a.ageDays - b.ageDays));
 
     return result.slice(0, 20);
   }, [attentionItems, conditionFilter, sortMode, typeFilter]);
@@ -442,7 +436,7 @@ export default function Home() {
   const attentionState = useSectionState({
     isLoading: !hasEverLoaded && isLoading,
     error,
-    isEmpty: filteredItems.length === 0 && conditionFilter !== "completed",
+    isEmpty: filteredItems.length === 0,
   });
 
   const tokenUsage = useMemo(() => data?.usage.tokenUsage ?? null, [data]);
@@ -1001,12 +995,6 @@ export default function Home() {
               onRetry={() => fetch()}
               minHeight="200px"
             >
-              {filteredItems.length === 0 && conditionFilter === "completed" ? (
-                <div className="flex flex-col items-center justify-center gap-2 px-4 text-center min-h-[200px]">
-                  <Database className="size-6 text-text-muted" aria-hidden="true" />
-                  <p className="text-sm font-medium text-text-secondary">No completed work in the last 14 days</p>
-                </div>
-              ) : (
               <div className="space-y-2 max-h-[360px] overflow-y-auto">
                 {filteredItems.map((item) => (
                     <div
@@ -1040,7 +1028,6 @@ export default function Home() {
                     </div>
                   ))}
               </div>
-              )}
             </SectionState>
           </CardContent>
         </Card>
