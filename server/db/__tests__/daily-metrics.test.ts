@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import Database from 'better-sqlite3'
-import { initDb, upsertDailyMetrics, getDailyMetricsRange, getDailyMetricsRangeForRepo, getLatestDailyDay, getLatestDailyDayForRepo, close } from '../client'
+import { initDb, upsertDailyMetrics, getDailyMetricsRange, getDailyMetricsRangeForRepo, close } from '../client'
 import type { DailyMetricsInsert } from '../../../types/daily-metrics'
 
 let tmpDir: string
@@ -134,18 +134,6 @@ describe('daily_metrics table', () => {
     expect(results).toHaveLength(0)
   })
 
-  it('filters latest day by repo key when requested', async () => {
-    await initDb()
-    expect(getLatestDailyDayForRepo('github:demo/repo-a')).toBeNull()
-
-    upsertDailyMetrics(makeRow('2026-06-01', { repoKey: 'github:demo/repo-a' }))
-    upsertDailyMetrics(makeRow('2026-06-05', { repoKey: 'github:demo/repo-b' }))
-
-    expect(getLatestDailyDayForRepo('github:demo/repo-a')).toBe('2026-06-01')
-    expect(getLatestDailyDayForRepo('github:demo/repo-b')).toBe('2026-06-05')
-    expect(getLatestDailyDay()).toBe('2026-06-05')
-  })
-
   it('returns results in descending order', async () => {
     await initDb()
     upsertDailyMetrics(makeRow('2026-06-01'))
@@ -154,17 +142,6 @@ describe('daily_metrics table', () => {
 
     const results = getDailyMetricsRange('2026-06-01', '2026-06-03')
     expect(results.map((r) => r.day)).toEqual(['2026-06-03', '2026-06-02', '2026-06-01'])
-  })
-
-  it('getLatestDailyDay returns the latest day', async () => {
-    await initDb()
-    expect(getLatestDailyDay()).toBeNull()
-
-    upsertDailyMetrics(makeRow('2026-06-01'))
-    expect(getLatestDailyDay()).toBe('2026-06-01')
-
-    upsertDailyMetrics(makeRow('2026-06-05'))
-    expect(getLatestDailyDay()).toBe('2026-06-05')
   })
 
   it('stores and retrieves nullable numeric fields correctly', async () => {

@@ -299,13 +299,6 @@ export const SQL = {
       data = excluded.data;
   `,
 
-  getAggregatesByType: `
-    SELECT * FROM aggregates
-    WHERE type = @type
-    ORDER BY period_start DESC
-    LIMIT @limit;
-  `,
-
   upsertLatestState: `
     INSERT INTO latest_state (key, value, updated_at)
     VALUES (@key, @value, datetime('now'))
@@ -393,13 +386,6 @@ export const SQL = {
     WHERE day >= @fromDay AND day <= @toDay
       AND repo_key = COALESCE(@repoKey, repo_key)
     ORDER BY day DESC;
-  `,
-
-  getLatestDailyDay: `
-    SELECT day FROM daily_metrics
-    WHERE repo_key = COALESCE(@repoKey, repo_key)
-    ORDER BY day DESC
-    LIMIT 1;
   `,
 
   upsertIssue: `
