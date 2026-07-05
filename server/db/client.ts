@@ -262,13 +262,6 @@ export function insertAggregate(
   })
 }
 
-export function getAggregatesByType(type: AggregateType, limit = 10): unknown[] {
-  const db = getDb()
-  const stmt = db.prepare(SQL.getAggregatesByType)
-  const results = stmt.all({ type: type, limit: limit }) as Array<{ data: string }>
-  return results.map(row => JSON.parse(row.data))
-}
-
 export function setRefreshInProgress(inProgress: boolean): void {
   const db = getDb()
   db.prepare(SQL.upsertLatestState).run({
@@ -473,18 +466,6 @@ export function getDailyMetricsRangeForRepo(fromDay: string, toDay: string, repo
   const stmt = db.prepare(SQL.getDailyMetricsRange)
   const rows = stmt.all({ fromDay, toDay, repoKey }) as Record<string, unknown>[]
   return rows.map(rowToDailyMetrics)
-}
-
-export function getLatestDailyDay(): string | null {
-  const db = getDb()
-  const row = db.prepare(`SELECT day FROM daily_metrics ORDER BY day DESC LIMIT 1;`).get() as { day?: unknown } | undefined
-  return row ? String(row.day) : null
-}
-
-export function getLatestDailyDayForRepo(repoKey: string): string | null {
-  const db = getDb()
-  const row = db.prepare(`SELECT day FROM daily_metrics WHERE repo_key = ? ORDER BY day DESC LIMIT 1;`).get(repoKey) as { day?: unknown } | undefined
-  return row ? String(row.day) : null
 }
 
 // ── Daily token usage helpers ──────────────────────────────────────
