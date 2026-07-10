@@ -53,7 +53,7 @@ describe('createOrchestrator', () => {
 
     expect(result.snapshotId).toBeTruthy()
     expect(result.capturedAt).toBeTruthy()
-    expect(result.sources).toEqual(['tokenUsage'])
+    expect(result.sources).toEqual(['tokenUsage', 'hermesTokenUsage'])
     expect(result.errors).toHaveLength(0)
     expect(result.partialData).toBe(false)
     expect(db.persistSnapshot).toHaveBeenCalledTimes(1)
