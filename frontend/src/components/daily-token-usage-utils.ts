@@ -15,3 +15,25 @@ export function lastNonGapDay(
   }
   return null;
 }
+
+/**
+ * Convert a raw `convertFromPixel` result into a valid category index.
+ *
+ * Handles the ECharts return type (`number | number[] | null | undefined`):
+ * extracts the first element if an array, validates finiteness and range,
+ * and rounds to the nearest integer for nearest-day resolution.
+ *
+ * Returns `null` when the coordinate is invalid, out of range, or the
+ * spine is empty (no day to resolve).
+ */
+export function resolveClickIndex(
+  result: number | number[] | null | undefined,
+  spineLength: number,
+): number | null {
+  if (spineLength === 0) return null;
+  const raw = Array.isArray(result) ? result[0] : result;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
+  const idx = Math.round(raw);
+  if (idx < 0 || idx >= spineLength) return null;
+  return idx;
+}
