@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DailyTokenUsageRow } from "@/types";
 import { TrendEChart } from "@/components/TrendEChart";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
@@ -12,7 +12,7 @@ import type { EChartsInstance } from "echarts-for-react";
 import { formatCost } from "@/lib/format-cost";
 import { formatCompactNumber, formatNumber } from "../../../utils/format";
 import { useReducedMotion } from "framer-motion";
-import { lastNonGapDay } from "./daily-token-usage-utils";
+import { lastNonGapDay, resolveClickIndex } from "./daily-token-usage-utils";
 
 interface DailyTokenUsageCardProps {
   rows: DailyTokenUsageRow[];
@@ -218,6 +218,10 @@ export function DailyTokenUsageCard({
     setChartInstance(instance);
   }, []);
 
+  // Stable ref for ZRender click handler — used for cleanup identity
+  type ZrClickEvent = { offsetX: number; offsetY: number };
+  const zrClickRef = useRef<(e: ZrClickEvent) => void>(() => {});
+
   useEffect(() => {
     if (!chartInstance) return;
 
@@ -235,23 +239,28 @@ export function DailyTokenUsageCard({
       setHoveredDay(null);
     };
 
-    const handleClick = (params: { dataIndex?: number }) => {
-      if (
-        params.dataIndex == null ||
-        params.dataIndex < 0 ||
-        params.dataIndex >= spine.length
-      ) {
-        // Click on empty chart area → unpin
+    // ZRender-level click — maps ANY click in the chart canvas to nearest day
+    const handleZrClick = (e: ZrClickEvent) => {
+      if (spine.length === 0) return;
+      const result = chartInstance.convertFromPixel("grid", [
+        e.offsetX,
+        e.offsetY,
+      ]);
+      const idx = resolveClickIndex(result, spine.length);
+      if (idx === null) {
         setPinnedDay(null);
       } else {
-        const date = spine[params.dataIndex];
+        const date = spine[idx];
         setPinnedDay((prev) => (prev === date ? null : date));
       }
     };
+    zrClickRef.current = handleZrClick;
 
     chartInstance.on("mouseover", handleMouseover);
     chartInstance.on("mouseout", handleMouseout);
-    chartInstance.on("click", handleClick);
+
+    const zr = chartInstance.getZr();
+    zr.on("click", handleZrClick);
 
     return () => {
       chartInstance.off(
@@ -262,10 +271,7 @@ export function DailyTokenUsageCard({
         "mouseout",
         handleMouseout as (...args: unknown[]) => void,
       );
-      chartInstance.off(
-        "click",
-        handleClick as (...args: unknown[]) => void,
-      );
+      zr.off("click", handleZrClick);
     };
   }, [chartInstance, spine]);
 

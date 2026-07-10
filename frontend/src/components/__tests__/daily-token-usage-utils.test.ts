@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@jest/globals";
-import { lastNonGapDay } from "../daily-token-usage-utils";
+import { lastNonGapDay, resolveClickIndex } from "../daily-token-usage-utils";
 import type { DailyTokenUsageRow } from "@/types";
 
 const makeRow = (date: string): DailyTokenUsageRow => ({
@@ -46,5 +46,67 @@ describe("lastNonGapDay", () => {
     const spine = ["2026-07-01", "2026-07-02", "2026-07-03"];
     const rows = [makeRow("2026-07-03"), makeRow("2026-07-01")];
     expect(lastNonGapDay(spine, rows)).toBe("2026-07-03");
+  });
+});
+
+describe("resolveClickIndex", () => {
+  it("extracts and rounds a valid array result", () => {
+    expect(resolveClickIndex([2.3, 150], 10)).toBe(2);
+  });
+
+  it("rounds to nearest integer", () => {
+    expect(resolveClickIndex([2.7, 150], 10)).toBe(3);
+  });
+
+  it("returns null for a negative index", () => {
+    expect(resolveClickIndex([-1, 150], 10)).toBeNull();
+  });
+
+  it("returns null for an index beyond spineLength", () => {
+    expect(resolveClickIndex([10, 150], 10)).toBeNull();
+  });
+
+  it("returns null for null input", () => {
+    expect(resolveClickIndex(null, 10)).toBeNull();
+  });
+
+  it("returns null for undefined input", () => {
+    expect(resolveClickIndex(undefined, 10)).toBeNull();
+  });
+
+  it("returns null for a non-array, non-number object input", () => {
+    expect(resolveClickIndex({ x: 5 } as unknown as number[], 10)).toBeNull();
+  });
+
+  it("returns null for NaN result", () => {
+    expect(resolveClickIndex([NaN, 150], 10)).toBeNull();
+  });
+
+  it("returns null for Infinity result", () => {
+    expect(resolveClickIndex([Infinity, 150], 10)).toBeNull();
+  });
+
+  it("returns null for an empty array", () => {
+    expect(resolveClickIndex([], 10)).toBeNull();
+  });
+
+  it("returns 0 for index 0 boundary", () => {
+    expect(resolveClickIndex([0, 150], 10)).toBe(0);
+  });
+
+  it("returns spineLength-1 for last valid index boundary", () => {
+    expect(resolveClickIndex([9, 150], 10)).toBe(9);
+  });
+
+  it("returns null when spine is empty", () => {
+    expect(resolveClickIndex([2, 150], 0)).toBeNull();
+  });
+
+  it("handles a plain number result (non-array)", () => {
+    expect(resolveClickIndex(3, 10)).toBe(3);
+  });
+
+  it("returns null for right-edge extrapolation", () => {
+    expect(resolveClickIndex([10.4, 150], 10)).toBeNull();
   });
 });
