@@ -15,8 +15,6 @@ export interface RankedModelEntry extends ModelUsageEntry {
   proportion: number;
 }
 
-import { slugToDisplayName } from "../../../utils/string-normalize";
-
 function sumOrNull(values: (number | null)[]): number | null {
   let has = false;
   let sum = 0;
@@ -50,7 +48,7 @@ export function rankModelUsage(entries: ModelUsageEntry[]): RankedModelEntry[] {
   const sorted = [...entries].sort((a, b) => {
     const diff = totalTokens(b) - totalTokens(a);
     if (diff !== 0) return diff;
-    return slugToDisplayName(a.modelName).localeCompare(slugToDisplayName(b.modelName));
+    return a.modelName.localeCompare(b.modelName);
   });
   const totalTokenSum = sorted.reduce((sum, e) => sum + totalTokens(e), 0);
 

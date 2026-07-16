@@ -1,5 +1,4 @@
 import { formatCost } from "@/lib/format-cost";
-import { slugToDisplayName } from "../../../utils/string-normalize";
 
 export interface CostRow {
   modelName: string;
@@ -34,13 +33,12 @@ export function aggregateCostRows(entries: ModelUsageLike[]): CostRow[] {
   const grouped = new Map<string, { messages: number; costValues: number[] }>();
 
   for (const entry of entries) {
-    const displayName = slugToDisplayName(entry.modelName);
-    const existing = grouped.get(displayName);
+    const existing = grouped.get(entry.modelName);
     if (existing) {
       existing.messages += entry.messages;
       if (entry.cost != null) existing.costValues.push(entry.cost);
     } else {
-      grouped.set(displayName, {
+      grouped.set(entry.modelName, {
         messages: entry.messages,
         costValues: entry.cost == null ? [] : [entry.cost],
       });
