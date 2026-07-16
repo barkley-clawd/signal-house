@@ -1,5 +1,6 @@
 import { connectHermesDb, querySessionsByDay, queryModelBreakdown } from './db-collector'
 import type { TokenUsageRow } from '../../../types/opencode'
+import { normalizeModelName } from '../../../utils/string-normalize'
 
 export interface TokenUsageCollectorResult extends TokenUsageRow {
   errors: string[]
@@ -26,16 +27,20 @@ export function collectHermesTokenUsageSnapshot(): TokenUsageCollectorResult {
   const totalCost = dailyAggs.reduce((sum, d) => sum + d.cost, 0)
 
   const models = queryModelBreakdown(since)
-  const modelUsage = models.map(m => ({
-    modelName: m.modelName,
-    messages: m.messages,
-    inputTokens: m.inputTokens,
-    outputTokens: m.outputTokens,
-    tokensReasoning: m.reasoningTokens,
-    cacheReadTokens: m.cacheReadTokens,
-    cacheWriteTokens: m.cacheWriteTokens,
-    cost: m.cost,
-  }))
+  const modelUsage = models.map(m => {
+    const { slug } = normalizeModelName(m.modelName)
+    return {
+      modelName: slug,
+      provider: m.provider ?? null,
+      messages: m.messages,
+      inputTokens: m.inputTokens,
+      outputTokens: m.outputTokens,
+      tokensReasoning: m.reasoningTokens,
+      cacheReadTokens: m.cacheReadTokens,
+      cacheWriteTokens: m.cacheWriteTokens,
+      cost: m.cost,
+    }
+  })
 
   return {
     periodStart,

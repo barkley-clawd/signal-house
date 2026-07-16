@@ -298,9 +298,9 @@ describe('hermes db collector', () => {
     expect(gpt!.inputTokens).toBe(300)
   })
 
-  it('handles null model as (unknown)', () => {
+  it('handles null model as unknown', () => {
     const rows = queryModelBreakdown(day(2026, 7, 7), day(2026, 7, 10), { dbPath: dbPath ?? undefined })
-    const unknown = rows.find(r => r.modelName === '(unknown)')
+    const unknown = rows.find(r => r.modelName === 'unknown')
     expect(unknown).toBeDefined()
     expect(unknown!.sessions).toBe(1)
     expect(unknown!.inputTokens).toBe(15)

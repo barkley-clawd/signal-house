@@ -555,12 +555,12 @@ describe('empty source data handled', () => {
 })
 
 describe('schema version', () => {
-  it('fresh install starts at schema version 17', async () => {
+  it('fresh install starts at schema version 18', async () => {
     await initDb()
     const db = new Database(join(tmpDir, 'metrics.db'))
     const row = db.prepare("SELECT value FROM latest_state WHERE key = 'schema_version'").get() as { value: string } | undefined
     expect(row).toBeDefined()
-    expect(Number(row!.value)).toBe(17)
+    expect(Number(row!.value)).toBe(18)
     db.close()
   })
 })

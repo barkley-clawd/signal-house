@@ -54,7 +54,7 @@ describe("aggregateCostRows", () => {
       { modelName: "alpha", messages: 100, cost: 4.0, inputTokens: null, outputTokens: null, tokensReasoning: null, cacheReadTokens: null, cacheWriteTokens: null } satisfies ModelUsageEntry,
     ]);
     expect(rows).toHaveLength(1);
-    expect(rows[0].modelName).toBe("alpha");
+    expect(rows[0].modelName).toBe("Alpha");
     expect(rows[0].cost).toBe(4.0);
     expect(rows[0].messages).toBe(100);
     expect(rows[0].costPerMessage).toBe(0.04);
@@ -66,7 +66,7 @@ describe("aggregateCostRows", () => {
       { modelName: "alpha", messages: 50, cost: 2.0, inputTokens: null, outputTokens: null, tokensReasoning: null, cacheReadTokens: null, cacheWriteTokens: null } satisfies ModelUsageEntry,
     ]);
     expect(rows).toHaveLength(1);
-    expect(rows[0].modelName).toBe("alpha");
+    expect(rows[0].modelName).toBe("Alpha");
     expect(rows[0].cost).toBe(6.0);
     expect(rows[0].messages).toBe(150);
     expect(rows[0].costPerMessage).toBeCloseTo(0.04, 10);

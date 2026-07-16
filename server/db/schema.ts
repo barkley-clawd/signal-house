@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 17
+export const SCHEMA_VERSION = 18
 
 export const SQL = {
 
@@ -298,6 +298,10 @@ export const SQL = {
     ALTER TABLE source_repositories ADD COLUMN last_seen_at TEXT;
     ALTER TABLE source_local_git ADD COLUMN present INTEGER NOT NULL DEFAULT 1;
     ALTER TABLE source_local_git ADD COLUMN last_seen_at TEXT;
+  `,
+
+  updateDailyTokenUsageModelUsageV18: `
+    UPDATE daily_token_usage SET model_usage = @modelUsage WHERE date = @date AND source = @source;
   `,
 
   getDailyTokenUsageRange: `

@@ -36,6 +36,7 @@ jest.mock('../db-collector', () => ({
   queryModelBreakdown: jest.fn(() => [
     {
       modelName: 'opencode-go/minimax-m3',
+      provider: 'opencode-go',
       sessions: 2,
       messages: 8,
       inputTokens: 500,
@@ -47,6 +48,7 @@ jest.mock('../db-collector', () => ({
     },
     {
       modelName: 'opencode-go/deepseek-v4-flash',
+      provider: 'opencode-go',
       sessions: 1,
       messages: 3,
       inputTokens: 200,
@@ -76,7 +78,8 @@ describe('collectTokenUsageSnapshot', () => {
     expect(result.totalCost).toBe(1.25)
     expect(result.modelUsage).toEqual([
       {
-        modelName: 'opencode-go/minimax-m3',
+        modelName: 'opencode-go-minimax-m3',
+        provider: 'opencode-go',
         messages: 8,
         inputTokens: 500,
         outputTokens: 300,
@@ -86,7 +89,8 @@ describe('collectTokenUsageSnapshot', () => {
         cost: 0.75,
       },
       {
-        modelName: 'opencode-go/deepseek-v4-flash',
+        modelName: 'opencode-go-deepseek-v4-flash',
+        provider: 'opencode-go',
         messages: 3,
         inputTokens: 200,
         outputTokens: 100,

@@ -47,11 +47,11 @@ describe("CostBreakdownCard", () => {
     ]);
     const html = renderToStaticMarkup(<CostBreakdownCard tokenUsage={tokenUsage} />);
 
-    expect(html).toContain("big");
-    expect(html).toContain("small");
+    expect(html).toContain("Big");
+    expect(html).toContain("Small");
 
-    const bigIndex = html.indexOf("big");
-    const smallIndex = html.indexOf("small");
+    const bigIndex = html.indexOf("Big");
+    const smallIndex = html.indexOf("Small");
     expect(bigIndex).toBeGreaterThan(-1);
     expect(smallIndex).toBeGreaterThan(-1);
     expect(bigIndex).toBeLessThan(smallIndex);
@@ -139,7 +139,7 @@ describe("CostBreakdownCard", () => {
       },
     ]);
     const html = renderToStaticMarkup(<CostBreakdownCard tokenUsage={tokenUsage} />);
-    expect(html).toContain("solo");
+    expect(html).toContain("Solo");
     expect(html).toContain("$3.00");
 
     // Single-model guard: no multiplier is rendered.
@@ -160,7 +160,7 @@ describe("CostBreakdownCard", () => {
       },
     ]);
     const html = renderToStaticMarkup(<CostBreakdownCard tokenUsage={tokenUsage} />);
-    expect(html).toContain("free");
+    expect(html).toContain("Free");
     expect(html).toContain("0.0¢/msg");
     expect(html).not.toContain("High cost, low usage");
     expect(html).not.toContain("Lower efficiency than average");
@@ -182,7 +182,7 @@ describe("CostBreakdownCard", () => {
       },
     ]);
     const html = renderToStaticMarkup(<CostBreakdownCard tokenUsage={tokenUsage} />);
-    expect(html).toContain("alpha:");
+    expect(html).toContain("Alpha:");
     expect(html).toContain("per message");
     expect(html).toContain("of total cost");
   });

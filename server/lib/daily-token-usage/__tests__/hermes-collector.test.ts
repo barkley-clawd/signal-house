@@ -159,6 +159,7 @@ describe('maybeCollectHermesDailyTokenUsage', () => {
     expect(inserted.modelUsage).toEqual([
       {
         modelName: 'model-a',
+        provider: null,
         messages: 12,
         inputTokens: 100,
         outputTokens: 50,

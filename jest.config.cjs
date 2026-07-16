@@ -8,6 +8,7 @@ module.exports = {
     '<rootDir>/server/**/*.test.tsx',
     '<rootDir>/frontend/src/**/*.test.ts',
     '<rootDir>/frontend/src/**/*.test.tsx',
+    '<rootDir>/utils/**/*.test.ts',
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/frontend/src/$1',

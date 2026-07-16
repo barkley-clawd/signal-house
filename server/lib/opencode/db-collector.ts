@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3'
 import os from 'node:os'
 import path from 'node:path'
+import { normalizeModelName as sharedNormalizeModelName } from '../../../utils/string-normalize'
 
 export interface OpencodeDbConfig {
   dbPath?: string
@@ -39,6 +40,7 @@ export interface DailyAggregation {
 
 export interface ModelBreakdownEntry {
   modelName: string
+  provider?: string | null
   sessions: number
   messages: number
   inputTokens: number
@@ -323,9 +325,11 @@ export function queryModelBreakdown(since: number, until?: number, config?: Open
   const grouped = new Map<string, ModelBreakdownEntry>()
 
   for (const row of rows) {
-    const modelName = normalizeModelName(row.model) ?? '(unknown)'
+    const rawName = normalizeModelName(row.model) ?? '(unknown)'
+    const { slug: modelName, provider } = sharedNormalizeModelName(rawName)
     const current = grouped.get(modelName) ?? {
       modelName,
+      provider,
       sessions: 0,
       messages: 0,
       inputTokens: 0,
@@ -334,6 +338,11 @@ export function queryModelBreakdown(since: number, until?: number, config?: Open
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
       cost: 0,
+    }
+
+    // Keep first non-null provider
+    if (current.provider == null && provider != null) {
+      current.provider = provider
     }
 
     current.sessions += 1

@@ -12,6 +12,7 @@ import type { TokenUsageRow } from '../../types/opencode'
 import type { DailyTokenUsageRow, DailyTokenUsageInsert, TokenUsageSource } from '../../types/daily-token-usage'
 import type { IssueMetric, PullRequestMetric, WorkflowRunMetric, RepositoryIdentity, SessionMetric, LocalGitRepoMetric } from '../../types/metrics'
 import { computeDailyMetrics } from '../lib/daily-metrics'
+import { normalizeModelName } from '../../utils/string-normalize'
 
 export type Db = Database.Database
 
@@ -191,6 +192,51 @@ function migrate(db: Db): void {
         const repoColumns = db.prepare(`PRAGMA table_info(source_repositories)`).all() as Array<{ name: string }>
         if (!repoColumns.some(c => c.name === 'present')) {
           db.exec(SQL.migrateRepositoryPresenceV17)
+        }
+      }
+
+      // Normalize model names in daily_token_usage (v18).
+      if (current < 18) {
+        const rows = db.prepare(`SELECT date, source, model_usage FROM daily_token_usage`).all() as Array<{ date: string; source: string; model_usage: string }>
+        const updateStmt = db.prepare(SQL.updateDailyTokenUsageModelUsageV18)
+        for (const row of rows) {
+          const usage = JSON.parse(row.model_usage) as Array<Record<string, unknown>>
+          if (!Array.isArray(usage) || usage.length === 0) continue
+
+          const grouped = new Map<string, { entry: Record<string, unknown> }>()
+          for (const entry of usage) {
+            const rawName = String(entry.modelName ?? '')
+            const { slug, provider } = normalizeModelName(rawName)
+
+            const existing = grouped.get(slug)
+            if (existing) {
+              // Merge: sum messages, cost, tokens
+              existing.entry.messages = (Number(existing.entry.messages) || 0) + (Number(entry.messages) || 0)
+              const existingCost = existing.entry.cost != null ? Number(existing.entry.cost) : null
+              const entryCost = entry.cost != null ? Number(entry.cost) : null
+              existing.entry.cost = (existingCost != null && entryCost != null) ? existingCost + entryCost : (existingCost ?? entryCost)
+              ;['inputTokens', 'outputTokens', 'tokensReasoning', 'cacheReadTokens', 'cacheWriteTokens'].forEach(f => {
+                if (existing.entry[f] != null || entry[f] != null) {
+                  existing.entry[f] = (Number(existing.entry[f]) || 0) + (Number(entry[f]) || 0)
+                }
+              })
+              // Keep first non-null provider
+              if (existing.entry.provider == null && provider != null) {
+                existing.entry.provider = provider
+              }
+            } else {
+              grouped.set(slug, {
+                entry: { ...entry, modelName: slug, provider: provider ?? entry.provider ?? null }
+              })
+            }
+          }
+
+          const updated = Array.from(grouped.values()).map(g => g.entry)
+          updateStmt.run({
+            date: row.date,
+            source: row.source,
+            modelUsage: JSON.stringify(updated),
+          })
         }
       }
     } else {

@@ -329,6 +329,7 @@ describe('opencode db collector', () => {
     expect(rows).toEqual([
       {
         modelName: 'claude-4',
+        provider: null,
         sessions: 3,
         messages: 5,
         inputTokens: 180,
@@ -340,6 +341,7 @@ describe('opencode db collector', () => {
       },
       {
         modelName: 'gpt-4.1',
+        provider: null,
         sessions: 1,
         messages: 2,
         inputTokens: 300,
@@ -351,6 +353,7 @@ describe('opencode db collector', () => {
       },
       {
         modelName: 'old-model',
+        provider: null,
         sessions: 1,
         messages: 2,
         inputTokens: 50,
@@ -361,7 +364,8 @@ describe('opencode db collector', () => {
         cost: 0.5,
       },
       {
-        modelName: '(unknown)',
+        modelName: 'unknown',
+        provider: null,
         sessions: 1,
         messages: 1,
         inputTokens: 15,
@@ -390,7 +394,8 @@ describe('opencode db collector', () => {
     expect(byName.get('claude-4')).toBe(35)
     expect(byName.get('gpt-4.1')).toBe(50)
     expect(byName.get('old-model')).toBe(10)
-    expect(byName.get('(unknown)')).toBe(0)
+    expect(byName.get('(unknown)')).toBeUndefined()
+    expect(byName.get('unknown')).toBe(0)
   })
 
   it('aggregates sessions by agent', () => {

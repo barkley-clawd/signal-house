@@ -1,6 +1,7 @@
 import { connectHermesDb, querySessionsByDay, queryModelBreakdown } from '../hermes/db-collector'
 import { upsertDailyTokenUsage } from '../../db/client'
 import type { DailyTokenUsageInsert } from '../../../types/daily-token-usage'
+import { normalizeModelName } from '../../../utils/string-normalize'
 
 export interface DailyTokenUsageCollectorResult {
   success: boolean
@@ -44,16 +45,20 @@ export async function maybeCollectHermesDailyTokenUsage(): Promise<DailyTokenUsa
       totalMessages: agg.sessions, // approximation
       totalTokens: agg.tokensInput + agg.tokensOutput + agg.tokensReasoning + agg.tokensCacheRead + agg.tokensCacheWrite,
       totalCost: agg.cost,
-      modelUsage: models.map(m => ({
-        modelName: m.modelName,
-        messages: m.messages,
-        inputTokens: m.inputTokens,
-        outputTokens: m.outputTokens,
-        tokensReasoning: m.reasoningTokens,
-        cacheReadTokens: m.cacheReadTokens,
-        cacheWriteTokens: m.cacheWriteTokens,
-        cost: m.cost,
-      })),
+      modelUsage: models.map(m => {
+        const { slug } = normalizeModelName(m.modelName)
+        return {
+          modelName: slug,
+          provider: m.provider ?? null,
+          messages: m.messages,
+          inputTokens: m.inputTokens,
+          outputTokens: m.outputTokens,
+          tokensReasoning: m.reasoningTokens,
+          cacheReadTokens: m.cacheReadTokens,
+          cacheWriteTokens: m.cacheWriteTokens,
+          cost: m.cost,
+        }
+      }),
       rawJson: null,
     }
 

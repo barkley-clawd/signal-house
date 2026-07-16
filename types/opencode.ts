@@ -9,6 +9,7 @@ export interface TokenUsageRow {
   totalCost: number | null
   modelUsage: Array<{
     modelName: string
+    provider?: string | null
     messages: number
     inputTokens: number | null
     outputTokens: number | null
