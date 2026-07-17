@@ -49,9 +49,11 @@ describe("loadFilter", () => {
 
   it("falls back to default when sessionStorage throws", () => {
     makeWindowWithSession();
-    jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-      throw new Error("blocked");
-    });
+    jest
+      .spyOn(window.sessionStorage, "getItem")
+      .mockImplementation(() => {
+        throw new Error("blocked");
+      });
     expect(loadFilter("sh-queue-type", "all", ["all", "issues", "prs"] as const)).toBe("all");
   });
 });
