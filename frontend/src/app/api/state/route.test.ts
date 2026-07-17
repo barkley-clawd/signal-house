@@ -48,6 +48,9 @@ function makeLatestState(): LatestState {
       localGit: [],
       errors: [],
       aggregates: {
+        repositoryPrivacy: {
+          privacyMap: { "github:demo/repo": false },
+        },
         throughput: {
           periodStart: "2026-05-27",
           periodEnd: "2026-06-23",
@@ -442,5 +445,103 @@ describe("GET /api/state", () => {
     expect(body.attention.items).toHaveLength(2);
     const repos = body.attention.items.map((item: { repo: string }) => item.repo);
     expect(repos).toEqual(expect.arrayContaining(["demo/repo", "demo/secret"]));
+  });
+
+  it("treats repo missing from privacyMap as private in attention queue (fail-closed)", async () => {
+    const state = makeLatestState();
+    state.snapshot!.aggregates.repositoryPrivacy = {
+      privacyMap: { "github:other/repo": false },
+    };
+    state.snapshot!.issues = [
+      {
+        id: "issue-1",
+        title: "Issue in missing-privacy repo",
+        state: "open",
+        createdAt: "2026-06-01T00:00:00.000Z",
+        updatedAt: "2026-06-01T00:00:00.000Z",
+        closedAt: null,
+        repo: "demo/repo",
+        repoKey: "github:demo/repo",
+        labels: [],
+        assignee: null,
+        milestone: null,
+        url: "https://example.test/issues/1",
+      },
+    ];
+    (getLatestState as jest.Mock).mockReturnValue(state);
+    (getShowPrivateRepoItems as jest.Mock).mockReturnValue(false);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.attention.items).toHaveLength(0);
+  });
+
+  it("returns zero attention items when privacyMap is empty", async () => {
+    const state = makeLatestState();
+    state.snapshot!.aggregates.repositoryPrivacy = {
+      privacyMap: {},
+    };
+    state.snapshot!.issues = [
+      {
+        id: "issue-1",
+        title: "Some issue",
+        state: "open",
+        createdAt: "2026-06-01T00:00:00.000Z",
+        updatedAt: "2026-06-01T00:00:00.000Z",
+        closedAt: null,
+        repo: "demo/repo",
+        repoKey: "github:demo/repo",
+        labels: [],
+        assignee: null,
+        milestone: null,
+        url: "https://example.test/issues/1",
+      },
+    ];
+    (getLatestState as jest.Mock).mockReturnValue(state);
+    (getShowPrivateRepoItems as jest.Mock).mockReturnValue(false);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.attention.items).toHaveLength(0);
+  });
+
+  it("includes known-public repo in attention queue", async () => {
+    const state = makeLatestState();
+    state.snapshot!.aggregates.repositoryPrivacy = {
+      privacyMap: { "github:demo/repo": false },
+    };
+    state.snapshot!.issues = [
+      {
+        id: "issue-1",
+        title: "Public issue",
+        state: "open",
+        createdAt: "2026-06-01T00:00:00.000Z",
+        updatedAt: "2026-06-01T00:00:00.000Z",
+        closedAt: null,
+        repo: "demo/repo",
+        repoKey: "github:demo/repo",
+        labels: [],
+        assignee: null,
+        milestone: null,
+        url: "https://example.test/issues/1",
+      },
+    ];
+    (getLatestState as jest.Mock).mockReturnValue(state);
+    (getShowPrivateRepoItems as jest.Mock).mockReturnValue(false);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.attention.items).toHaveLength(1);
+    expect(body.attention.items[0]).toMatchObject({
+      kind: "issue",
+      title: "Public issue",
+      repo: "demo/repo",
+    });
   });
 });

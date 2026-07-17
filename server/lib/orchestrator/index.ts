@@ -58,6 +58,9 @@ function mergeIdentity(
     githubOwner: existing.githubOwner ?? next.githubOwner,
     githubRepo: existing.githubRepo ?? next.githubRepo,
     source: mergeSource(existing.source, next.source),
+    // NOTE: `??` preserves null — do NOT change to `||`. 
+    // `existing.isPrivate ?? next.isPrivate` keeps null when both are null,
+    // and keeps false when one is false (|| would coerce false → next value).
     isPrivate: existing.isPrivate ?? next.isPrivate,
   }
 }
@@ -102,7 +105,7 @@ function toRepositoryMetric(info: LocalGitRepoInfo): RepositoryIdentity {
     githubOwner: info.githubOwner,
     githubRepo: info.githubRepo,
     source: info.source,
-    isPrivate: false,
+    isPrivate: null,
   }
 }
 
@@ -362,7 +365,7 @@ export function createOrchestrator(config: OrchestratorConfig) {
       const deduplicatedRepos = dedupeRepositories(repositories)
       const privacyMap: Record<string, boolean> = {}
       for (const repo of deduplicatedRepos) {
-        privacyMap[repo.repoKey] = repo.isPrivate ?? false
+        privacyMap[repo.repoKey] = repo.isPrivate ?? true
       }
 
       const snapshot: MetricSnapshot = {
@@ -388,6 +391,16 @@ export function createOrchestrator(config: OrchestratorConfig) {
         },
       }
 
+      // Validate privacy map before persisting
+      const privacyValidation = validatePrivacyMap(snapshot)
+      if (!privacyValidation.ok) {
+        console.warn(`[orchestrator] Privacy map missing entries for ${privacyValidation.missing.length} repos:`, privacyValidation.missing)
+        snapshot.metadata.partialData = true
+        if (snapshot.metadata.errors) {
+          snapshot.metadata.errors.push(`privacyMap missing ${privacyValidation.missing.length} repoKey(s)`)
+        }
+      }
+
       try {
         await initDb()
         persistSnapshot(snapshot)
@@ -410,3 +423,17 @@ export function createOrchestrator(config: OrchestratorConfig) {
 }
 
 export type Orchestrator = ReturnType<typeof createOrchestrator>
+
+function validatePrivacyMap(snapshot: MetricSnapshot): { ok: boolean; missing: string[] } {
+  const privacyMap = snapshot.aggregates?.repositoryPrivacy?.privacyMap ?? {}
+  const repoKeys = new Set<string>()
+  for (const item of snapshot.issues ?? []) repoKeys.add(item.repoKey)
+  for (const item of snapshot.pullRequests ?? []) repoKeys.add(item.repoKey)
+  for (const item of snapshot.workflowRuns ?? []) repoKeys.add(item.repoKey)
+  for (const item of snapshot.repositories ?? []) repoKeys.add(item.repoKey)
+  const missing: string[] = []
+  for (const key of repoKeys) {
+    if (!(key in privacyMap)) missing.push(key)
+  }
+  return { ok: missing.length === 0, missing }
+}

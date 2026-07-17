@@ -73,7 +73,7 @@ describe('buildDiagnostics — private repo filtering', () => {
     expect(result.discoveredRepos.every(r => r.isPrivate !== true)).toBe(true)
   })
 
-  it('defaults isPrivate to false when localGit repo has no match in snapshot.repositories', () => {
+  it('defaults isPrivate to true when localGit repo has no match in snapshot.repositories (fail-closed)', () => {
     const state = makeState()
     const snapshot = makeSnapshot({
       localGit: [
@@ -89,9 +89,90 @@ describe('buildDiagnostics — private repo filtering', () => {
 
     const result = buildDiagnostics(state, snapshot, false)
 
+    expect(result.discoveredRepos).toHaveLength(0)
+  })
+
+  it('returns isPrivate:false for a GitHub-discovered repo with explicit public privacyMap entry', () => {
+    const state = makeState()
+    const snapshot = makeSnapshot({
+      localGit: [
+        makeLocalRepo({ repoKey: 'local:/public', repoName: 'public', githubOwner: 'acme', githubRepo: 'public' }),
+      ],
+      repositories: [
+        makeRepository({ repoKey: 'github:acme/public', githubOwner: 'acme', githubRepo: 'public' }),
+      ],
+    })
+    snapshot.aggregates!.repositoryPrivacy = {
+      privacyMap: { 'github:acme/public': false },
+    }
+
+    // When showPrivateRepoItems is false, public repos should still appear
+    const result = buildDiagnostics(state, snapshot, false)
+
     expect(result.discoveredRepos).toHaveLength(1)
-    expect(result.discoveredRepos[0].name).toBe('orphan')
+    expect(result.discoveredRepos[0].name).toBe('public')
     expect(result.discoveredRepos[0].isPrivate).toBe(false)
+  })
+
+  it('returns isPrivate:true for a GitHub-discovered repo with explicit private privacyMap entry', () => {
+    const state = makeState()
+    const snapshot = makeSnapshot({
+      localGit: [
+        makeLocalRepo({ repoKey: 'local:/secret', repoName: 'secret', githubOwner: 'acme', githubRepo: 'secret' }),
+      ],
+      repositories: [
+        makeRepository({ repoKey: 'github:acme/secret', githubOwner: 'acme', githubRepo: 'secret' }),
+      ],
+    })
+    snapshot.aggregates!.repositoryPrivacy = {
+      privacyMap: { 'github:acme/secret': true },
+    }
+
+    const result = buildDiagnostics(state, snapshot, false)
+
+    expect(result.discoveredRepos).toHaveLength(0)
+  })
+
+  it('treats repo missing from privacyMap as private (fail-closed)', () => {
+    const state = makeState()
+    const snapshot = makeSnapshot({
+      localGit: [
+        makeLocalRepo({ repoKey: 'local:/missing', repoName: 'missing', githubOwner: 'acme', githubRepo: 'missing' }),
+      ],
+      repositories: [
+        makeRepository({ repoKey: 'github:acme/other', githubOwner: 'acme', githubRepo: 'other' }),
+      ],
+    })
+    snapshot.aggregates!.repositoryPrivacy = {
+      privacyMap: { 'github:acme/other': false },
+    }
+
+    const result = buildDiagnostics(state, snapshot, false)
+
+    expect(result.discoveredRepos).toHaveLength(0)
+  })
+
+  it('shows all repos when showPrivateRepoItems is true, regardless of privacy', () => {
+    const state = makeState()
+    const snapshot = makeSnapshot({
+      localGit: [
+        makeLocalRepo({ repoKey: 'local:/public', repoName: 'public', githubOwner: 'acme', githubRepo: 'public' }),
+        makeLocalRepo({ repoKey: 'local:/secret', repoName: 'secret', githubOwner: 'acme', githubRepo: 'secret' }),
+        makeLocalRepo({ repoKey: 'local:/orphan', repoName: 'orphan', githubOwner: null, githubRepo: null }),
+      ],
+      repositories: [
+        makeRepository({ repoKey: 'github:acme/public', githubOwner: 'acme', githubRepo: 'public' }),
+        makeRepository({ repoKey: 'github:acme/secret', githubOwner: 'acme', githubRepo: 'secret' }),
+      ],
+    })
+    snapshot.aggregates!.repositoryPrivacy = {
+      privacyMap: { 'github:acme/public': false, 'github:acme/secret': true },
+    }
+
+    const result = buildDiagnostics(state, snapshot, true)
+
+    expect(result.discoveredRepos).toHaveLength(3)
+    expect(result.discoveredRepos.map(r => r.name).sort()).toEqual(['orphan', 'public', 'secret'])
   })
 
   it('returns an empty discoveredRepos array when localGit is empty, regardless of flag', () => {

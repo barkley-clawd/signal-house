@@ -13,10 +13,10 @@ export function buildDiagnostics(
   const pollIntervalSeconds = getEnv(process.env, 'SECRET_HOUSE_POLL_INTERVAL_SECONDS', 'METRICS_POLL_INTERVAL_SECONDS')
   const refreshAgeSeconds = snapshot ? Math.max(0, Math.floor((Date.now() - new Date(snapshot.capturedAt).getTime()) / 1000)) : null
   const privacyMap = snapshot?.aggregates?.repositoryPrivacy?.privacyMap ?? {}
-  const privateByGithubKey = new Map<string, boolean>(
+  const publicByGithubKey = new Map<string, boolean>(
     (snapshot?.repositories ?? [])
       .filter(repo => repo.githubOwner && repo.githubRepo)
-      .map(repo => [`${repo.githubOwner}/${repo.githubRepo}`, privacyMap[repo.repoKey] === true]),
+      .map(repo => [`${repo.githubOwner}/${repo.githubRepo}`, privacyMap[repo.repoKey] === false]),
   )
   const allLocalGit = (snapshot?.localGit ?? [])
     .map(repo => {
@@ -31,7 +31,7 @@ export function buildDiagnostics(
         githubOwner: repo.githubOwner,
         githubRepo: repo.githubRepo,
         source: repo.source,
-        isPrivate: githubKey ? (privateByGithubKey.get(githubKey) ?? false) : false,
+        isPrivate: githubKey ? !(publicByGithubKey.get(githubKey) ?? false) : true,
         present: repo.present,
         lastSeenAt: repo.lastSeenAt ?? null,
       }

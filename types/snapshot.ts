@@ -247,7 +247,7 @@ export interface SourceDiagnostics {
     githubOwner: string | null
     githubRepo: string | null
     source: 'local' | 'github' | 'both'
-    isPrivate?: boolean
+    isPrivate: boolean | null
   }>
   historicalRepos: Array<{
     repoKey: string
@@ -257,7 +257,7 @@ export interface SourceDiagnostics {
     githubOwner: string | null
     githubRepo: string | null
     source: 'local' | 'github' | 'both'
-    isPrivate?: boolean
+    isPrivate: boolean | null
     lastSeenAt: string | null
   }>
   skippedPaths: Array<{ path: string; message: string }>
@@ -274,6 +274,7 @@ export interface SourceDiagnostics {
   lastSuccessfulRefreshAt: string | null
   lastError: string | null
   sourceHealth: Record<string, RefreshSourceHealth>
+  uncoveredPrivacyRepos?: number
 }
 
 export type RefreshRunStatus = 'idle' | 'running' | 'success' | 'failed' | 'skipped'

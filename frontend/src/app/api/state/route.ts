@@ -18,13 +18,13 @@ function buildAttentionItems(
   pullRequests: PullRequestMetric[],
   nowMs: number,
   staleThresholdDays: number,
-  privateRepoKeys: Set<string>,
+  publicRepoKeys: Set<string>,
 ): DashboardAttentionItem[] {
   const items: DashboardAttentionItem[] = [];
 
   for (const issue of issues) {
     if (issue.state !== "open") continue;
-    if (privateRepoKeys.has(issue.repoKey)) continue;
+    if (!publicRepoKeys.has(issue.repoKey)) continue;
     const ageDays = daysSince(issue.updatedAt, nowMs);
     const isStale = ageDays >= staleThresholdDays;
     items.push({
@@ -41,7 +41,7 @@ function buildAttentionItems(
 
   for (const pr of pullRequests) {
     if (pr.state !== "open") continue;
-    if (privateRepoKeys.has(pr.repoKey)) continue;
+    if (!publicRepoKeys.has(pr.repoKey)) continue;
     const ageDays = daysSince(pr.updatedAt, nowMs);
     const isStale = ageDays >= staleThresholdDays;
     let priorityTier: DashboardAttentionItem["priorityTier"];
@@ -102,11 +102,14 @@ export async function GET() {
       sessionUsageAggregate,
     );
 
-    const privateRepoKeys = getShowPrivateRepoItems()
-      ? new Set<string>()
+    const showAll = getShowPrivateRepoItems();
+    const publicRepoKeys = showAll
+      ? new Set<string>(
+          Object.keys(state.snapshot?.aggregates?.repositoryPrivacy?.privacyMap ?? {}),
+        )
       : new Set<string>(
           Object.entries(state.snapshot?.aggregates?.repositoryPrivacy?.privacyMap ?? {})
-            .filter(([, isPrivate]) => isPrivate)
+            .filter(([, isPrivate]) => isPrivate === false)
             .map(([repoKey]) => repoKey),
         );
 
@@ -135,7 +138,7 @@ export async function GET() {
           state.snapshot?.pullRequests ?? [],
           Date.now(),
           staleThresholdDays,
-          privateRepoKeys,
+          publicRepoKeys,
         ),
       },
       status: {

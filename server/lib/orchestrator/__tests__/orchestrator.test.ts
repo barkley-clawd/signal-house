@@ -1001,4 +1001,320 @@ describe('createOrchestrator', () => {
     expect(snapshotArg.aggregates.sessionUsage!.totalSessions).toBe(1)
     expect(snapshotArg.aggregates.throughput.issuesOpened).toBe(1)
   })
+
+  it('sets isPrivate:null in toRepositoryMetric for local-git-only repos', async () => {
+    const gitCollector = { collect: jest.fn() }
+
+    jest.mocked(mockGitCreate).mockReturnValue(gitCollector as never)
+
+    gitCollector.collect.mockResolvedValue({
+      repos: [{
+        repoKey: 'local:/home/local-only',
+        source: 'local',
+        path: '/home/local-only',
+        repoName: 'local-only',
+        remoteUrl: null,
+        githubOwner: null,
+        githubRepo: null,
+        defaultBranch: 'main',
+        isGitRepo: true,
+        recentCommits: 5,
+        commitsByDay: {},
+        authors: ['alice@example.com'],
+        latestCommitAt: '2025-06-01T12:00:00Z',
+        error: null,
+      }],
+      errors: [],
+    })
+
+    const orchestrator = createOrchestrator({
+      localGit: { repos: [{ path: '/home/local-only' }] },
+    })
+
+    await orchestrator.collect()
+
+    const snapshotArg = jest.mocked(db.persistSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
+    const repo = snapshotArg.repositories.find(r => r.repoKey === 'local:/home/local-only')
+    expect(repo).toBeDefined()
+    expect(repo!.isPrivate).toBeNull()
+    // privacyMap should resolve null → true
+    expect(snapshotArg.aggregates.repositoryPrivacy?.privacyMap['local:/home/local-only']).toBe(true)
+  })
+
+  it('resolves GitHub private:true → privacyMap:true', async () => {
+    const ghCollector = { collect: jest.fn(), getApiClient: jest.fn() }
+
+    jest.mocked(mockGhCreate).mockReturnValue(ghCollector as never)
+
+    ghCollector.collect.mockResolvedValue({
+      snapshotId: 'gh-id',
+      capturedAt: new Date().toISOString(),
+      issuesCount: 0,
+      prsCount: 0,
+      workflowRunsCount: 0,
+      errors: [],
+      partialData: false,
+      durationMs: 100,
+      snapshot: {
+        id: 'gh-id',
+        capturedAt: new Date().toISOString(),
+        issues: [],
+        pullRequests: [],
+        workflowRuns: [],
+        repositories: [{
+          id: '1', name: 'secret', repoKey: 'github:acme/secret', localPath: null, remoteUrl: 'https://github.com/acme/secret',
+          githubOwner: 'acme', githubRepo: 'secret', source: 'github',
+          owner: 'acme', description: null,
+          defaultBranch: 'main', isPrivate: true,
+          updatedAt: '', pushedAt: '', url: '',
+        }],
+        sessions: [],
+        localGit: [],
+        errors: [],
+        aggregates: {
+          throughput: { periodStart: '', periodEnd: '', issuesClosed: 0, issuesOpened: 0, prsMerged: 0, prsCreated: 0, totalCommits: 0 },
+          cycleTime: null,
+          ci: null,
+          staleWork: { asOf: '', staleIssues: 0, stalePRs: 0, staleThresholdDays: 14, oldestItemDays: null },
+          sessionUsage: null,
+          computedAt: 'now',
+        },
+        metadata: { source: 'github' as const, refreshDurationMs: 100, partialData: false, errors: [] },
+      },
+    })
+
+    const orchestrator = createOrchestrator({
+      github: [{ owner: 'acme', repo: 'secret', token: 'tok' }],
+    })
+
+    await orchestrator.collect()
+
+    const snapshotArg = jest.mocked(db.persistSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
+    expect(snapshotArg.aggregates.repositoryPrivacy?.privacyMap['github:acme/secret']).toBe(true)
+  })
+
+  it('resolves GitHub private:false → privacyMap:false', async () => {
+    const ghCollector = { collect: jest.fn(), getApiClient: jest.fn() }
+
+    jest.mocked(mockGhCreate).mockReturnValue(ghCollector as never)
+
+    ghCollector.collect.mockResolvedValue({
+      snapshotId: 'gh-id',
+      capturedAt: new Date().toISOString(),
+      issuesCount: 0,
+      prsCount: 0,
+      workflowRunsCount: 0,
+      errors: [],
+      partialData: false,
+      durationMs: 100,
+      snapshot: {
+        id: 'gh-id',
+        capturedAt: new Date().toISOString(),
+        issues: [],
+        pullRequests: [],
+        workflowRuns: [],
+        repositories: [{
+          id: '1', name: 'public', repoKey: 'github:acme/public', localPath: null, remoteUrl: 'https://github.com/acme/public',
+          githubOwner: 'acme', githubRepo: 'public', source: 'github',
+          owner: 'acme', description: null,
+          defaultBranch: 'main', isPrivate: false,
+          updatedAt: '', pushedAt: '', url: '',
+        }],
+        sessions: [],
+        localGit: [],
+        errors: [],
+        aggregates: {
+          throughput: { periodStart: '', periodEnd: '', issuesClosed: 0, issuesOpened: 0, prsMerged: 0, prsCreated: 0, totalCommits: 0 },
+          cycleTime: null,
+          ci: null,
+          staleWork: { asOf: '', staleIssues: 0, stalePRs: 0, staleThresholdDays: 14, oldestItemDays: null },
+          sessionUsage: null,
+          computedAt: 'now',
+        },
+        metadata: { source: 'github' as const, refreshDurationMs: 100, partialData: false, errors: [] },
+      },
+    })
+
+    const orchestrator = createOrchestrator({
+      github: [{ owner: 'acme', repo: 'public', token: 'tok' }],
+    })
+
+    await orchestrator.collect()
+
+    const snapshotArg = jest.mocked(db.persistSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
+    expect(snapshotArg.aggregates.repositoryPrivacy?.privacyMap['github:acme/public']).toBe(false)
+  })
+
+  it('mergeIdentity preserves null through ??', async () => {
+    const ghCollector = { collect: jest.fn(), getApiClient: jest.fn() }
+    const gitCollector = { collect: jest.fn() }
+
+    jest.mocked(mockGhCreate).mockReturnValue(ghCollector as never)
+    jest.mocked(mockGitCreate).mockReturnValue(gitCollector as never)
+
+    // GitHub returns isPrivate:false (known public)
+    ghCollector.collect.mockResolvedValue({
+      snapshotId: 'gh-id',
+      capturedAt: new Date().toISOString(),
+      issuesCount: 0,
+      prsCount: 0,
+      workflowRunsCount: 0,
+      errors: [],
+      partialData: false,
+      durationMs: 100,
+      snapshot: {
+        id: 'gh-id',
+        capturedAt: new Date().toISOString(),
+        issues: [],
+        pullRequests: [],
+        workflowRuns: [],
+        repositories: [{
+          id: '1', name: 'repo', repoKey: 'github:test/repo', localPath: null, remoteUrl: 'https://github.com/test/repo',
+          githubOwner: 'test', githubRepo: 'repo', source: 'github',
+          owner: 'test', description: null,
+          defaultBranch: 'main', isPrivate: false,
+          updatedAt: '', pushedAt: '', url: '',
+        }],
+        sessions: [],
+        localGit: [],
+        errors: [],
+        aggregates: {
+          throughput: { periodStart: '', periodEnd: '', issuesClosed: 0, issuesOpened: 0, prsMerged: 0, prsCreated: 0, totalCommits: 0 },
+          cycleTime: null,
+          ci: null,
+          staleWork: { asOf: '', staleIssues: 0, stalePRs: 0, staleThresholdDays: 14, oldestItemDays: null },
+          sessionUsage: null,
+          computedAt: 'now',
+        },
+        metadata: { source: 'github' as const, refreshDurationMs: 100, partialData: false, errors: [] },
+      },
+    })
+
+    // Local git returns isPrivate:null (unknown privacy)
+    gitCollector.collect.mockResolvedValue({
+      repos: [{
+        repoKey: 'github:test/repo',
+        source: 'both',
+        path: '/home/repo',
+        repoName: 'repo',
+        remoteUrl: 'https://github.com/test/repo',
+        githubOwner: 'test',
+        githubRepo: 'repo',
+        defaultBranch: 'main',
+        isGitRepo: true,
+        recentCommits: 5,
+        commitsByDay: {},
+        authors: ['alice@example.com'],
+        latestCommitAt: '2025-06-01T12:00:00Z',
+        error: null,
+      }],
+      errors: [],
+    })
+
+    const orchestrator = createOrchestrator({
+      github: [{ owner: 'test', repo: 'repo', token: 'tok' }],
+      localGit: { repos: [{ path: '/home/repo' }] },
+    })
+
+    await orchestrator.collect()
+
+    const snapshotArg = jest.mocked(db.persistSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
+    const mergedRepo = snapshotArg.repositories.find(r => r.repoKey === 'github:test/repo')
+    expect(mergedRepo).toBeDefined()
+    // GitHub's isPrivate:false should NOT be overwritten by local's null
+    // mergeIdentity: existing.isPrivate ?? next.isPrivate → false ?? null → false
+    expect(mergedRepo!.isPrivate).toBe(false)
+  })
+
+  it('validatePrivacyMap flags missing repoKey and sets partialData', async () => {
+    const gitCollector = { collect: jest.fn() }
+
+    jest.mocked(mockGitCreate).mockReturnValue(gitCollector as never)
+
+    gitCollector.collect.mockResolvedValue({
+      repos: [{
+        repoKey: 'local:/home/local-only',
+        source: 'local',
+        path: '/home/local-only',
+        repoName: 'local-only',
+        remoteUrl: null,
+        githubOwner: null,
+        githubRepo: null,
+        defaultBranch: 'main',
+        isGitRepo: true,
+        recentCommits: 5,
+        commitsByDay: {},
+        authors: ['alice@example.com'],
+        latestCommitAt: '2025-06-01T12:00:00Z',
+        error: null,
+      }],
+      errors: [],
+    })
+
+    const orchestrator = createOrchestrator({
+      localGit: { repos: [{ path: '/home/local-only' }] },
+    })
+
+    await orchestrator.collect()
+
+    const snapshotArg = jest.mocked(db.persistSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
+    // The local-git-only repo IS in repositories (via toRepositoryMetric),
+    // so it should be in the privacyMap. Check that the privacy map has it.
+    expect(snapshotArg.aggregates.repositoryPrivacy?.privacyMap['local:/home/local-only']).toBe(true)
+    // No orphan issue/PR keys to be missing — everything should be covered
+    expect(snapshotArg.metadata.partialData).toBe(false)
+  })
+
+  it('validatePrivacyMap sets partialData when issue repoKey is missing from privacyMap', async () => {
+    const ghCollector = { collect: jest.fn(), getApiClient: jest.fn() }
+
+    jest.mocked(mockGhCreate).mockReturnValue(ghCollector as never)
+
+    ghCollector.collect.mockResolvedValue({
+      snapshotId: 'gh-id',
+      capturedAt: new Date().toISOString(),
+      issuesCount: 1,
+      prsCount: 0,
+      workflowRunsCount: 0,
+      errors: [],
+      partialData: false,
+      durationMs: 100,
+      snapshot: {
+        id: 'gh-id',
+        capturedAt: new Date().toISOString(),
+        issues: [{
+          id: '1', title: 'Orphan issue', state: 'open' as const,
+          createdAt: '', updatedAt: '', closedAt: null, repo: 'orphan/repo', repoKey: 'github:orphan/repo',
+          labels: [], assignee: null, milestone: null, url: '',
+        }],
+        pullRequests: [],
+        workflowRuns: [],
+        repositories: [],
+        sessions: [],
+        localGit: [],
+        errors: [],
+        aggregates: {
+          throughput: { periodStart: '', periodEnd: '', issuesClosed: 0, issuesOpened: 1, prsMerged: 0, prsCreated: 0, totalCommits: 0 },
+          cycleTime: null,
+          ci: null,
+          staleWork: { asOf: '', staleIssues: 0, stalePRs: 0, staleThresholdDays: 14, oldestItemDays: null },
+          sessionUsage: null,
+          computedAt: 'now',
+        },
+        metadata: { source: 'github' as const, refreshDurationMs: 100, partialData: false, errors: [] },
+      },
+    })
+
+    const orchestrator = createOrchestrator({
+      github: [{ owner: 'orphan', repo: 'repo', token: 'tok' }],
+    })
+
+    await orchestrator.collect()
+
+    const snapshotArg = jest.mocked(db.persistSnapshot).mock.calls[0]![0] as import('../../../../types/snapshot').MetricSnapshot
+    // The issue has repoKey 'github:orphan/repo' but repositories is empty → no privacyMap entry
+    expect(snapshotArg.aggregates.repositoryPrivacy?.privacyMap['github:orphan/repo']).toBeUndefined()
+    expect(snapshotArg.metadata.partialData).toBe(true)
+    expect(snapshotArg.metadata.errors.some(e => e.includes('privacyMap missing'))).toBe(true)
+  })
 })

@@ -56,7 +56,7 @@ export interface RepositoryIdentity {
   githubOwner: string | null
   githubRepo: string | null
   source: 'local' | 'github' | 'both'
-  isPrivate?: boolean
+  isPrivate?: boolean | null
   present?: boolean
 }
 
@@ -65,7 +65,7 @@ export interface RepositoryMetric extends RepositoryIdentity {
   owner: string
   description: string | null
   defaultBranch: string
-  isPrivate: boolean
+  isPrivate: boolean | null
   updatedAt: string
   pushedAt: string
   url: string
