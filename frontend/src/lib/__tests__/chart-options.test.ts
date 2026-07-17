@@ -7,7 +7,40 @@ import {
   computeCycleTimeFooter,
   computeCIFooter,
 } from "@/lib/charts/options";
-import type { DashboardWindowDay } from "@/types";
+import type { DashboardWindowDay, DailyMetricsRow } from "@/types";
+
+// The chart builders only read a handful of fields from `metrics`, but
+// `DailyMetricsRow` is a 27-field struct in production. Building a complete
+// row keeps the test type-honest under the frontend's strict tsconfig.
+const makeMetrics = (overrides: Partial<DailyMetricsRow> = {}): DailyMetricsRow => ({
+  day: "2026-07-01",
+  repoKey: "all",
+  capturedAt: "2026-07-02T00:00:00Z",
+  source: "test",
+  version: 1,
+  reflectsCompleteData: true,
+  issuesOpened: 0,
+  issuesClosed: 0,
+  prsCreated: 0,
+  prsMerged: 0,
+  totalCommits: 0,
+  avgCycleTimeSeconds: null,
+  medianCycleTimeSeconds: null,
+  p95CycleTimeSeconds: null,
+  cycleTimeSampleSize: 0,
+  ciTotalRuns: 0,
+  ciPassCount: 0,
+  ciFailCount: 0,
+  ciPassRate: null,
+  ciAvgDurationMs: null,
+  totalSessions: 0,
+  sessionErrorCount: 0,
+  staleIssues: 0,
+  stalePrs: 0,
+  warnings: [],
+  createdAt: "2026-07-02T00:00:00Z",
+  ...overrides,
+});
 
 const makeDay = (
   day: string,
@@ -15,15 +48,15 @@ const makeDay = (
 ): DashboardWindowDay => ({
   day,
   isGap: false,
-  metrics: {
+  metrics: makeMetrics({
+    day,
     ciPassCount: 10,
     ciFailCount: 2,
     ciTotalRuns: 12,
     issuesClosed: 5,
     prsMerged: 3,
     medianCycleTimeSeconds: 86400,
-    day,
-  },
+  }),
   ...overrides,
 });
 
@@ -62,7 +95,7 @@ describe("buildThroughputOption", () => {
 
 describe("buildCycleTimeOption", () => {
   it("returns null when no median cycle time exists", () => {
-    expect(buildCycleTimeOption([makeDay("2026-07-01", { metrics: { day: "2026-07-01", ciPassCount: 1, ciFailCount: 0, ciTotalRuns: 1, issuesClosed: 0, prsMerged: 0, medianCycleTimeSeconds: null } })])).toBeNull();
+    expect(buildCycleTimeOption([makeDay("2026-07-01", { metrics: makeMetrics({ medianCycleTimeSeconds: null }) })])).toBeNull();
   });
   it("returns a line option for valid days", () => {
     const opt = buildCycleTimeOption([makeDay("2026-07-01"), makeDay("2026-07-02")]);
@@ -90,11 +123,17 @@ describe("computeThroughputFooter", () => {
     expect(computeThroughputFooter([makeDay("2026-07-01")])).toBe("Insufficient data");
   });
   it("computes percentage change with arrow", () => {
-    const days = [makeDay("2026-07-01", { metrics: { day: "2026-07-01", ciPassCount: 1, ciFailCount: 0, ciTotalRuns: 1, issuesClosed: 4, prsMerged: 2, medianCycleTimeSeconds: 86400 } }), makeDay("2026-07-02", { metrics: { day: "2026-07-02", ciPassCount: 1, ciFailCount: 0, ciTotalRuns: 1, issuesClosed: 8, prsMerged: 4, medianCycleTimeSeconds: 86400 } })];
+    const days = [
+      makeDay("2026-07-01", { metrics: makeMetrics({ issuesClosed: 4, prsMerged: 2 }) }),
+      makeDay("2026-07-02", { metrics: makeMetrics({ issuesClosed: 8, prsMerged: 4 }) }),
+    ];
     expect(computeThroughputFooter(days)).toContain("this window");
   });
   it("shows em dash when prev sum is 0", () => {
-    const days = [makeDay("2026-07-01", { metrics: { day: "2026-07-01", ciPassCount: 0, ciFailCount: 0, ciTotalRuns: 0, issuesClosed: 0, prsMerged: 0, medianCycleTimeSeconds: null } }), makeDay("2026-07-02")];
+    const days = [
+      makeDay("2026-07-01", { metrics: makeMetrics({ issuesClosed: 0, prsMerged: 0, ciPassCount: 0, ciFailCount: 0, ciTotalRuns: 0, medianCycleTimeSeconds: null }) }),
+      makeDay("2026-07-02"),
+    ];
     expect(computeThroughputFooter(days)).toContain("—");
   });
 });
@@ -105,9 +144,9 @@ describe("computeCycleTimeFooter", () => {
   });
   it("returns trend summary for valid days", () => {
     const days = [
-      makeDay("2026-07-01", { metrics: { day: "2026-07-01", ciPassCount: 1, ciFailCount: 0, ciTotalRuns: 1, issuesClosed: 0, prsMerged: 0, medianCycleTimeSeconds: 172800 } }),
-      makeDay("2026-07-02", { metrics: { day: "2026-07-02", ciPassCount: 1, ciFailCount: 0, ciTotalRuns: 1, issuesClosed: 0, prsMerged: 0, medianCycleTimeSeconds: 86400 } }),
-      makeDay("2026-07-03", { metrics: { day: "2026-07-03", ciPassCount: 1, ciFailCount: 0, ciTotalRuns: 1, issuesClosed: 0, prsMerged: 0, medianCycleTimeSeconds: 43200 } }),
+      makeDay("2026-07-01", { metrics: makeMetrics({ medianCycleTimeSeconds: 172800 }) }),
+      makeDay("2026-07-02", { metrics: makeMetrics({ medianCycleTimeSeconds: 86400 }) }),
+      makeDay("2026-07-03", { metrics: makeMetrics({ medianCycleTimeSeconds: 43200 }) }),
     ];
     const footer = computeCycleTimeFooter(days);
     expect(footer).toContain("latest");
@@ -120,7 +159,10 @@ describe("computeCIFooter", () => {
     expect(computeCIFooter([makeDay("2026-07-01")])).toBe("Insufficient data");
   });
   it("returns No runs message when no CI ran in second half", () => {
-    const days = [makeDay("2026-07-01"), makeDay("2026-07-02", { metrics: { day: "2026-07-02", ciPassCount: 0, ciFailCount: 0, ciTotalRuns: 0, issuesClosed: 0, prsMerged: 0, medianCycleTimeSeconds: null } })];
+    const days = [
+      makeDay("2026-07-01"),
+      makeDay("2026-07-02", { metrics: makeMetrics({ ciPassCount: 0, ciFailCount: 0, ciTotalRuns: 0 }) }),
+    ];
     expect(computeCIFooter(days)).toBe("No runs this window");
   });
   it("computes pass rate percentage", () => {
