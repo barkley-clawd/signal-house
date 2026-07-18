@@ -72,6 +72,8 @@ Server startup hooks live in `server/plugins/`.
 
 The poller and manual refresh use the same refresh runner and concurrency guard.
 
+For design rationale and "why" decisions, see [`docs/decisions/`](docs/decisions/).
+
 ## Local Development
 
 ### Prerequisites
