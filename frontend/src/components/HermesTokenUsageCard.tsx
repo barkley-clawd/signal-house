@@ -6,7 +6,6 @@ import { TrendEChart } from "@/components/TrendEChart";
 import { useEChartsTheme } from "@/hooks/useEChartsTheme";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { StatsBar } from "@/components/ui/stats-bar";
 import type { StatItem } from "@/components/ui/stats-bar";
 import type { EChartsOption } from "echarts-for-react";
@@ -185,12 +184,6 @@ export function HermesTokenUsageCard({
           <CardTitle className="text-text-primary text-base">
             Agent Token Usage
           </CardTitle>
-          <Badge
-            variant="outline"
-            className="ml-1 border-purple-500/30 text-purple-400 text-[10px]"
-          >
-            Hermes Agent
-          </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">

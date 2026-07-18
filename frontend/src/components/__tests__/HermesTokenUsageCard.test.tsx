@@ -46,7 +46,7 @@ describe("HermesTokenUsageCard", () => {
     );
 
     expect(html).toContain("Agent Token Usage");
-    expect(html).toContain("Hermes Agent");
+    expect(html).not.toContain("Hermes Agent");
   });
 
   it("renders empty state when no rows", () => {
