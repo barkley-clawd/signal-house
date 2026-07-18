@@ -1,8 +1,8 @@
-# ADR-0004: Explicit-null tri-state privacy contract
+# ADR-0001: Explicit-null tri-state privacy contract
 
 - **Status**: Accepted
 - **Date**: 2026-07-17
-- **Number**: 0004
+- **Number**: 0001
 
 ## Context
 
